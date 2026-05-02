@@ -4,9 +4,7 @@ const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: '*' }
-});
+const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.static('public'));
 
@@ -25,45 +23,53 @@ const PLANT_COSTS = {
 const PLANT_HP = {
   sunflower: 80, peashooter: 80, walnut: 600, snowpea: 80, cherrybomb: 1
 };
-const ZOMBIE_COSTS = {
-  basic: 40, cone: 70, bucket: 110
+const PLANT_COOLDOWNS = {
+  sunflower: 3, peashooter: 2, walnut: 8, snowpea: 3, cherrybomb: 15
 };
-const ZOMBIE_STATS = {
-  basic: { hp: 100, speed: 22, damage: 25, reward: 25 },
-  cone: { hp: 200, speed: 18, damage: 25, reward: 40 },
-  bucket: { hp: 400, speed: 14, damage: 35, reward: 60 }
+
+// Зомби с уровнями открытия
+const ZOMBIE_TIERS = {
+  basic: { tier: 0, hp: 100, speed: 22, damage: 25, reward: 25, energyReward: 15, name: 'Обычный' },
+  cone: { tier: 1, hp: 200, speed: 18, damage: 25, reward: 40, energyReward: 25, name: 'Конусный' },
+  bucket: { tier: 2, hp: 400, speed: 14, damage: 35, reward: 60, energyReward: 35, name: 'Ведёрный' },
+  runner: { tier: 3, hp: 80, speed: 40, damage: 15, reward: 30, energyReward: 20, name: 'Бегун' },
+  gargantuar: { tier: 4, hp: 1000, speed: 10, damage: 80, reward: 150, energyReward: 80, name: 'Гаргантюа' }
+};
+
+const ZOMBIE_ENERGY_COSTS = {
+  basic: 30, cone: 50, bucket: 80, runner: 40, gargantuar: 150
 };
 
 // ─────────────────── СОСТОЯНИЕ ИГРЫ ───────────────────
 let gameState = {
-  mode: null,           // 'endless' или 'versus'
-  round: 0,             // 0-3 в versus (0: p1-защита, 1: p2-защита, 2: p1-защита, 3: p2-защита)
-  phase: 'lobby',       // 'lobby', 'prep', 'playing', 'result', 'gameover'
+  mode: null,
+  round: 0,
+  phase: 'lobby', // 'lobby', 'prep', 'playing', 'result', 'gameover'
   plants: [],
   zombies: [],
   projectiles: [],
   sunDrops: [],
-  lawnmowers: [],       // [row] = true/false
-  sunPoints: 300,
-  zombieEnergy: 80,
-  prepTimer: 15,        // 15 секунд подготовки
-  gameTimer: 120,       // 2 минуты на раунд
-  spawnLocked: true,    // спавн зомби заблокирован первые 15 сек
+  lawnmowers: [],
+  sunPoints: 150,
+  zombieEnergy: 60,
+  maxEnergy: 300,
+  prepTimer: 15,
+  gameTimer: 0,
+  elapsedTime: 0,
+  spawnLocked: true,
+  unlockedTiers: 0,
+  zombieKillCount: 0,
+  plantCooldowns: {},
   score1: 0,
   score2: 0,
-  roundsWon: [0, 0],    // [player1, player2] для versus
-  matchScores: [],       // [{defender, attacker}] для endless
+  roundsWon: [0, 0],
+  matchScores: [],
   gameOver: false,
   winner: null,
   lastUpdate: Date.now()
 };
 
-let players = {
-  defender: null,    // socket.id текущего защитника
-  attacker: null,    // socket.id текущего атакующего
-  player1: null,     // первый подключившийся
-  player2: null      // второй подключившийся
-};
+let players = { defender: null, attacker: null, player1: null, player2: null };
 
 // ─────────────────── ФУНКЦИИ ───────────────────
 function resetRound() {
@@ -72,19 +78,21 @@ function resetRound() {
   gameState.projectiles = [];
   gameState.sunDrops = [];
   gameState.lawnmowers = Array(ROWS).fill(true);
-  gameState.sunPoints = 300;
-  gameState.zombieEnergy = 80;
+  gameState.sunPoints = 150;
+  gameState.zombieEnergy = 60;
+  gameState.maxEnergy = 300;
   gameState.prepTimer = 15;
+  gameState.gameTimer = 0;
+  gameState.elapsedTime = 0;
   gameState.spawnLocked = true;
+  gameState.unlockedTiers = 0;
+  gameState.zombieKillCount = 0;
+  gameState.plantCooldowns = {};
   gameState.gameOver = false;
   gameState.winner = null;
+  gameState.score1 = 0;
+  gameState.score2 = 0;
   gameState.lastUpdate = Date.now();
-  
-  if (gameState.mode === 'endless') {
-    gameState.gameTimer = 120;
-  } else {
-    gameState.gameTimer = 90; // 1.5 минуты на раунд в versus
-  }
 }
 
 function startPrepPhase() {
@@ -98,47 +106,52 @@ function startPlayingPhase() {
   gameState.lastUpdate = Date.now();
 }
 
+function unlockTiers() {
+  // Каждые 25 убитых зомби открывается новый тир
+  const newTier = Math.floor(gameState.zombieKillCount / 25);
+  if (newTier > gameState.unlockedTiers && newTier <= 4) {
+    gameState.unlockedTiers = newTier;
+    const unlockedTypes = Object.keys(ZOMBIE_TIERS).filter(t => ZOMBIE_TIERS[t].tier <= gameState.unlockedTiers);
+    io.emit('message', `🔓 Открыты новые зомби! Тир ${gameState.unlockedTiers}`);
+    io.emit('unlockedZombies', unlockedTypes);
+  }
+}
+
+function getHordeComposition() {
+  const count = Math.min(10 + gameState.elapsedTime * 2, 30);
+  const types = [];
+  const availableTypes = Object.keys(ZOMBIE_TIERS).filter(t => ZOMBIE_TIERS[t].tier <= gameState.unlockedTiers);
+  
+  for (let i = 0; i < count; i++) {
+    const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+    types.push(type);
+  }
+  return types;
+}
+
 function endRound(winner) {
   gameState.phase = 'result';
   gameState.gameOver = true;
   gameState.winner = winner;
   
-  if (gameState.mode === 'versus') {
-    if (winner === 'defender') {
-      gameState.roundsWon[gameState.round % 2]++;
-    } else {
-      gameState.roundsWon[(gameState.round + 1) % 2]++;
-    }
-    gameState.matchScores.push({
-      round: gameState.round,
-      defender: gameState.round % 2 === 0 ? players.player1 : players.player2,
-      attacker: gameState.round % 2 === 0 ? players.player2 : players.player1,
-      winner: winner,
-      timeSurvived: gameState.gameTimer > 0 ? (gameState.mode === 'endless' ? 120 : 90) - gameState.gameTimer : 0
-    });
-    
-    // Проверяем, не закончился ли матч
-    if (gameState.round >= 3) {
-      // Все 4 раунда сыграны
-      gameState.phase = 'gameover';
-    }
-  } else {
-    // Endless режим
-    gameState.matchScores.push({
-      timeSurvived: 120 - gameState.gameTimer,
-      score1: gameState.score1,
-      score2: gameState.score2
-    });
+  gameState.matchScores.push({
+    round: gameState.round,
+    timeSurvived: gameState.elapsedTime,
+    score1: gameState.score1,
+    score2: gameState.score2,
+    winner: winner
+  });
+  
+  if (gameState.mode === 'versus' && gameState.round >= 3) {
+    gameState.phase = 'gameover';
   }
 }
 
 function switchSides() {
-  // Меняем защитника и атакующего местами
   const temp = players.defender;
   players.defender = players.attacker;
   players.attacker = temp;
   
-  // Уведомляем игроков о смене ролей
   if (players.defender) {
     io.to(players.defender).emit('role', 'defender');
     io.to(players.defender).emit('message', 'Теперь вы Защитник!');
@@ -165,20 +178,20 @@ function updateGame() {
   
   if (gameState.phase !== 'playing') return;
   
-  // Таймер игры
-  gameState.gameTimer -= dt;
-  if (gameState.gameTimer <= 0) {
-    // Время вышло
-    if (gameState.mode === 'endless') {
-      endRound('defender'); // Защитник выстоял
-    } else {
-      endRound('timeout');
-    }
-    return;
-  }
+  // Соревновательный режим: таймер идёт вверх
+  gameState.elapsedTime += dt;
+  gameState.gameTimer = gameState.elapsedTime;
   
-  // Регенерация энергии зомби
-  gameState.zombieEnergy = Math.min(250, gameState.zombieEnergy + 5 * dt);
+  // Регенерация энергии (медленная)
+  gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + 3 * dt);
+  
+  // Открытие тиров
+  unlockTiers();
+  
+  // Обновление кулдаунов растений
+  Object.keys(gameState.plantCooldowns).forEach(key => {
+    gameState.plantCooldowns[key] = Math.max(0, (gameState.plantCooldowns[key] || 0) - dt);
+  });
   
   // Растения
   gameState.plants.forEach(p => {
@@ -190,11 +203,11 @@ function updateGame() {
       if (p.sunTimer <= 0) {
         gameState.sunDrops.push({
           x: p.x + (Math.random() - 0.5) * 40,
-          y: p.y - 15,
+          y: p.y - 10,
           alive: true,
           value: 25
         });
-        p.sunTimer = 8 + Math.random() * 4;
+        p.sunTimer = 5 + Math.random() * 3; // Уменьшенный кулдаун
       }
     }
     
@@ -209,7 +222,7 @@ function updateGame() {
           slow: p.type === 'snowpea',
           alive: true
         });
-        p.shootTimer = 1.5;
+        p.shootTimer = 1.2;
       }
     }
     
@@ -237,7 +250,11 @@ function updateGame() {
       if (z.attackTimer <= 0) {
         blocking.hp -= z.damage;
         z.attackTimer = 0.7;
-        if (blocking.hp <= 0) blocking.alive = false;
+        if (blocking.hp <= 0) {
+          blocking.alive = false;
+          // Зомби получает энергию за съеденное растение
+          gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + 20);
+        }
       }
     } else {
       const speed = z.slowed ? z.speed * 0.4 : z.speed;
@@ -247,11 +264,8 @@ function updateGame() {
     // Газонокосилка
     if (z.x < FIELD_START_X && gameState.lawnmowers[z.row]) {
       gameState.lawnmowers[z.row] = false;
-      // Убиваем всех зомби в этом ряду
       gameState.zombies.forEach(zz => {
-        if (zz.row === z.row && zz.alive) {
-          zz.alive = false;
-        }
+        if (zz.row === z.row && zz.alive) zz.alive = false;
       });
     }
     
@@ -259,15 +273,15 @@ function updateGame() {
     if (z.x < FIELD_START_X - 60 && !gameState.lawnmowers[z.row]) {
       z.alive = false;
       gameState.score2++;
-      if (gameState.score2 >= 5) {
-        endRound('attacker');
-      }
+      if (gameState.score2 >= 5) endRound('attacker');
     }
     
     if (z.hp <= 0) {
       z.alive = false;
       gameState.score1++;
+      gameState.zombieKillCount++;
       gameState.sunPoints += z.reward;
+      gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + z.energyReward);
     }
   });
   
@@ -285,11 +299,11 @@ function updateGame() {
       }
     });
     
-    if (p.x > ZOMBIE_SPAWN_X) p.alive = false;
+    if (p.x > ZOMBIE_SPAWN_X + 50) p.alive = false;
   });
   
   // Случайное солнце
-  if (Math.random() < dt * 0.12) {
+  if (Math.random() < dt * 0.1) {
     gameState.sunDrops.push({
       x: FIELD_START_X + Math.random() * (COLS * CELL_W),
       y: 90,
@@ -328,9 +342,14 @@ function broadcastState() {
     lawnmowers: gameState.lawnmowers,
     sunPoints: Math.floor(gameState.sunPoints),
     zombieEnergy: Math.floor(gameState.zombieEnergy),
+    maxEnergy: gameState.maxEnergy,
     spawnLocked: gameState.spawnLocked,
     prepTimer: Math.ceil(gameState.prepTimer),
     gameTimer: Math.ceil(gameState.gameTimer),
+    elapsedTime: gameState.elapsedTime,
+    unlockedTiers: gameState.unlockedTiers,
+    zombieKillCount: gameState.zombieKillCount,
+    plantCooldowns: gameState.plantCooldowns,
     score1: gameState.score1,
     score2: gameState.score2,
     roundsWon: gameState.roundsWon,
@@ -357,37 +376,39 @@ io.on('connection', (socket) => {
     players.player1 = socket.id;
     players.defender = socket.id;
     socket.emit('role', 'defender');
-    socket.emit('message', 'Вы Игрок 1. Выберите режим игры.');
     socket.emit('isHost', true);
+    socket.emit('message', 'Вы Игрок 1. Выберите режим игры.');
   } else if (!players.player2) {
     players.player2 = socket.id;
     players.attacker = socket.id;
     socket.emit('role', 'attacker');
-    socket.emit('message', 'Вы Игрок 2. Ожидайте выбора режима.');
+    socket.emit('message', 'Вы Игрок 2. Ожидайте...');
   } else {
     socket.emit('error', 'Игра заполнена');
     socket.disconnect();
     return;
   }
   
-  // Выбор режима (только хост)
   socket.on('selectMode', (mode) => {
     if (socket.id !== players.player1 || gameState.phase !== 'lobby') return;
-    
     gameState.mode = mode;
     gameState.round = 0;
     startPrepPhase();
-    io.emit('message', `Режим: ${mode === 'endless' ? 'Бесконечный бой' : 'Соревновательный (4 раунда)'}`);
+    io.emit('message', `Режим: ${mode === 'endless' ? 'Бесконечный бой' : 'Соревновательный'}`);
   });
   
-  // Посадка растения
   socket.on('plant', (data) => {
     if (socket.id !== players.defender || gameState.phase !== 'playing') return;
     if (gameState.sunPoints < PLANT_COSTS[data.type]) return;
     if (data.row < 0 || data.row >= ROWS || data.col < 0 || data.col >= COLS) return;
     if (gameState.plants.some(p => p.alive && p.row === data.row && p.col === data.col)) return;
     
+    const cooldownKey = data.type;
+    if ((gameState.plantCooldowns[cooldownKey] || 0) > 0) return;
+    
     gameState.sunPoints -= PLANT_COSTS[data.type];
+    gameState.plantCooldowns[cooldownKey] = PLANT_COOLDOWNS[data.type];
+    
     gameState.plants.push({
       type: data.type, row: data.row, col: data.col,
       x: FIELD_START_X + data.col * CELL_W + CELL_W / 2,
@@ -399,7 +420,6 @@ io.on('connection', (socket) => {
     });
   });
   
-  // Сбор солнца
   socket.on('collect', (data) => {
     if (socket.id !== players.defender) return;
     const sun = gameState.sunDrops[data.id];
@@ -409,38 +429,38 @@ io.on('connection', (socket) => {
     }
   });
   
-  // Спавн зомби
   socket.on('zombie', (data) => {
-    if (socket.id !== players.attacker || gameState.phase !== 'playing') return;
-    if (gameState.spawnLocked) return;
-    if (!ZOMBIE_COSTS[data.type]) return;
-    if (gameState.zombieEnergy < ZOMBIE_COSTS[data.type]) return;
+    if (socket.id !== players.attacker || gameState.phase !== 'playing' || gameState.spawnLocked) return;
+    
+    const tier = ZOMBIE_TIERS[data.type]?.tier;
+    if (tier === undefined || tier > gameState.unlockedTiers) return;
+    if (gameState.zombieEnergy < ZOMBIE_ENERGY_COSTS[data.type]) return;
     
     const row = data.row !== undefined ? data.row : Math.floor(Math.random() * ROWS);
     if (row < 0 || row >= ROWS) return;
     
-    gameState.zombieEnergy -= ZOMBIE_COSTS[data.type];
-    const s = ZOMBIE_STATS[data.type];
+    gameState.zombieEnergy -= ZOMBIE_ENERGY_COSTS[data.type];
+    const s = ZOMBIE_TIERS[data.type];
     gameState.zombies.push({
       type: data.type, row: row,
       x: ZOMBIE_SPAWN_X + Math.random() * 80,
       y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,
       hp: s.hp, maxHp: s.hp, speed: s.speed,
       damage: s.damage, reward: s.reward,
+      energyReward: s.energyReward,
       attackTimer: 0.5, slowed: false, alive: true
     });
   });
   
-  // Орда
   socket.on('horde', () => {
-    if (socket.id !== players.attacker || gameState.phase !== 'playing') return;
-    if (gameState.spawnLocked) return;
+    if (socket.id !== players.attacker || gameState.phase !== 'playing' || gameState.spawnLocked) return;
+    if (gameState.elapsedTime < 90) return; // Орда доступна только после 1.5 минут
     
-    const types = ['basic', 'basic', 'cone'];
+    const types = getHordeComposition();
     types.forEach(type => {
-      if (gameState.zombieEnergy < ZOMBIE_COSTS[type]) return;
-      gameState.zombieEnergy -= ZOMBIE_COSTS[type];
-      const s = ZOMBIE_STATS[type];
+      if (gameState.zombieEnergy < ZOMBIE_ENERGY_COSTS[type]) return;
+      gameState.zombieEnergy -= ZOMBIE_ENERGY_COSTS[type];
+      const s = ZOMBIE_TIERS[type];
       const row = Math.floor(Math.random() * ROWS);
       gameState.zombies.push({
         type, row: row,
@@ -448,15 +468,14 @@ io.on('connection', (socket) => {
         y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,
         hp: s.hp, maxHp: s.hp, speed: s.speed,
         damage: s.damage, reward: s.reward,
-        attackTimer: 0.5, slowed: false, alive: true
+        energyReward: s.energyReward,
+        attackTimer: 0.3, slowed: false, alive: true
       });
     });
   });
   
-  // Следующий раунд (versus)
   socket.on('nextRound', () => {
     if (gameState.mode !== 'versus' || gameState.phase !== 'result') return;
-    
     gameState.round++;
     if (gameState.round >= 4) {
       gameState.phase = 'gameover';
@@ -464,11 +483,10 @@ io.on('connection', (socket) => {
     } else {
       switchSides();
       startPrepPhase();
-      io.emit('message', `Раунд ${gameState.round + 1}/4. Стороны поменялись!`);
+      io.emit('message', `Раунд ${gameState.round + 1}/4`);
     }
   });
   
-  // Рестарт игры
   socket.on('restart', () => {
     gameState = {
       mode: null,
@@ -479,11 +497,16 @@ io.on('connection', (socket) => {
       projectiles: [],
       sunDrops: [],
       lawnmowers: Array(ROWS).fill(true),
-      sunPoints: 300,
-      zombieEnergy: 80,
+      sunPoints: 150,
+      zombieEnergy: 60,
+      maxEnergy: 300,
       prepTimer: 15,
-      gameTimer: 120,
+      gameTimer: 0,
+      elapsedTime: 0,
       spawnLocked: true,
+      unlockedTiers: 0,
+      zombieKillCount: 0,
+      plantCooldowns: {},
       score1: 0,
       score2: 0,
       roundsWon: [0, 0],
@@ -494,14 +517,15 @@ io.on('connection', (socket) => {
     };
     players.defender = players.player1;
     players.attacker = players.player2;
-    io.to(players.player1).emit('role', 'defender');
-    io.to(players.player1).emit('isHost', true);
-    io.to(players.player2).emit('role', 'attacker');
-    io.emit('message', 'Игра перезапущена. Выберите режим.');
+    if (players.player1) {
+      io.to(players.player1).emit('role', 'defender');
+      io.to(players.player1).emit('isHost', true);
+    }
+    if (players.player2) io.to(players.player2).emit('role', 'attacker');
+    io.emit('message', 'Игра перезапущена.');
   });
   
   socket.on('disconnect', () => {
-    console.log('Отключился:', socket.id);
     if (socket.id === players.player1) players.player1 = null;
     if (socket.id === players.player2) players.player2 = null;
     if (socket.id === players.defender) players.defender = null;
