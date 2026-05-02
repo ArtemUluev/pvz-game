@@ -1,6 +1,6 @@
 {
   "name": "pvz-multiplayer",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "description": "Plants vs Zombies Multiplayer",
   "main": "server.js",
   "scripts": {
