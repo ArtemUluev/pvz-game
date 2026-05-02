@@ -8,208 +8,288 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(express.static('public'));
 
-const ROWS = 5, COLS = 9;
-const FIELD_START_X = 150, CELL_W = 85, CELL_H = 90, FIELD_TOP_Y = 120;
-const FIELD_END_X = FIELD_START_X + COLS * CELL_W;
+// ─────────────────── КОНСТАНТЫ ───────────────────
+const ROWS = 5;
+const COLS = 9;
+const FIELD_START_X = 150;
+const CELL_W = 85;
+const CELL_H = 90;
+const FIELD_TOP_Y = 120;
+const FIELD_END_X = FIELD_START_X + COLS * CELL_W; // 915
+const ZOMBIE_SPAWN_X = FIELD_END_X; // Зомби появляются прямо на правом краю поля
 
-const PLANT_STATS = {
-  sunflower: { cost: 50, hp: 80, sunInterval: 10, cooldown: 10 },
-  peashooter: { cost: 100, hp: 80, damage: 25, shootInterval: 1.5, cooldown: 2 },
-  snowpea: { cost: 175, hp: 80, damage: 20, shootInterval: 1.7, slow: true, cooldown: 3 },
-  walnut: { cost: 50, hp: 600, cooldown: 8 },
-  cherrybomb: { cost: 150, hp: 1, explosive: true, cooldown: 15 }
+const PLANT_COSTS = {
+  sunflower: 50, peashooter: 100, walnut: 50, snowpea: 175, cherrybomb: 150
+};
+const PLANT_HP = {
+  sunflower: 80, peashooter: 80, walnut: 600, snowpea: 80, cherrybomb: 1
+};
+const PLANT_COOLDOWNS = {
+  sunflower: 10, peashooter: 2, walnut: 8, snowpea: 3, cherrybomb: 15
 };
 
-const ZOMBIE_STATS = {
-  basic: { hp: 100, speed: 28, damage: 25, reward: 25, cost: 30 },
-  cone: { hp: 200, speed: 22, damage: 25, reward: 40, cost: 50 },
-  bucket: { hp: 400, speed: 18, damage: 35, reward: 60, cost: 80 },
-  runner: { hp: 80, speed: 50, damage: 15, reward: 30, cost: 40 },
-  gargantuar: { hp: 1000, speed: 14, damage: 1000, reward: 150, cost: 150 }
+// Зомби с уровнями открытия
+const ZOMBIE_TIERS = {
+  basic: { tier: 0, hp: 100, speed: 28, damage: 25, reward: 25, energyReward: 15, name: 'Обычный' },
+  cone: { tier: 1, hp: 200, speed: 22, damage: 25, reward: 40, energyReward: 25, name: 'Конусный' },
+  bucket: { tier: 2, hp: 400, speed: 18, damage: 35, reward: 60, energyReward: 35, name: 'Ведёрный' },
+  runner: { tier: 3, hp: 80, speed: 50, damage: 15, reward: 30, energyReward: 20, name: 'Бегун' },
+  gargantuar: { tier: 4, hp: 1000, speed: 14, damage: 80, reward: 150, energyReward: 80, name: 'Гаргантюа' }
 };
 
-let players = { defender: null, attacker: null };
+const ZOMBIE_ENERGY_COSTS = {
+  basic: 30, cone: 50, bucket: 80, runner: 40, gargantuar: 150
+};
 
-let game = {
+// ─────────────────── СОСТОЯНИЕ ИГРЫ ───────────────────
+let gameState = {
+  mode: null,
+  round: 0,
+  phase: 'lobby',
   plants: [],
   zombies: [],
   projectiles: [],
   sunDrops: [],
-  lawnmowers: Array(ROWS).fill(true),
+  lawnmowers: [],
   sunPoints: 150,
   zombieEnergy: 60,
   maxEnergy: 300,
   prepTimer: 15,
+  gameTimer: 0,
   elapsedTime: 0,
   spawnLocked: true,
+  unlockedTiers: 0,
+  zombieKillCount: 0,
   plantCooldowns: {},
   score1: 0,
   score2: 0,
+  roundsWon: [0, 0],
+  matchScores: [],
   gameOver: false,
   winner: null,
-  hordeTimer: 120,
   lastUpdate: Date.now()
 };
 
+let players = { defender: null, attacker: null, player1: null, player2: null };
+
+// ─────────────────── ФУНКЦИИ ───────────────────
 function resetRound() {
-  game.plants = [];
-  game.zombies = [];
-  game.projectiles = [];
-  game.sunDrops = [];
-  game.lawnmowers = Array(ROWS).fill(true);
-  game.sunPoints = 150;
-  game.zombieEnergy = 60;
-  game.prepTimer = 15;
-  game.elapsedTime = 0;
-  game.spawnLocked = true;
-  game.plantCooldowns = {};
-  game.score1 = 0;
-  game.score2 = 0;
-  game.gameOver = false;
-  game.winner = null;
-  game.hordeTimer = 120;
-  game.lastUpdate = Date.now();
+  gameState.plants = [];
+  gameState.zombies = [];
+  gameState.projectiles = [];
+  gameState.sunDrops = [];
+  gameState.lawnmowers = Array(ROWS).fill(true);
+  gameState.sunPoints = 150;
+  gameState.zombieEnergy = 60;
+  gameState.maxEnergy = 300;
+  gameState.prepTimer = 15;
+  gameState.gameTimer = 0;
+  gameState.elapsedTime = 0;
+  gameState.spawnLocked = true;
+  gameState.unlockedTiers = 0;
+  gameState.zombieKillCount = 0;
+  gameState.plantCooldowns = {};
+  gameState.gameOver = false;
+  gameState.winner = null;
+  gameState.score1 = 0;
+  gameState.score2 = 0;
+  gameState.lastUpdate = Date.now();
 }
 
-function update() {
-  const now = Date.now();
-  const dt = Math.min(0.2, (now - game.lastUpdate) / 1000);
-  game.lastUpdate = now;
+function startPrepPhase() {
+  gameState.phase = 'prep';
+  resetRound();
+}
 
-  if (game.spawnLocked) {
-    game.prepTimer -= dt;
-    if (game.prepTimer <= 0) game.spawnLocked = false;
+function startPlayingPhase() {
+  gameState.phase = 'playing';
+  gameState.spawnLocked = false;
+  gameState.lastUpdate = Date.now();
+}
+
+function unlockTiers() {
+  const newTier = Math.floor(gameState.zombieKillCount / 25);
+  if (newTier > gameState.unlockedTiers && newTier <= 4) {
+    gameState.unlockedTiers = newTier;
+    const unlockedList = Object.keys(ZOMBIE_TIERS).filter(t => ZOMBIE_TIERS[t].tier <= gameState.unlockedTiers);
+    io.emit('message', `🔓 Открыты новые зомби! Тир ${gameState.unlockedTiers + 1}/5`);
+    io.emit('unlockedZombies', unlockedList);
+  }
+}
+
+function getHordeComposition() {
+  const count = Math.min(10 + Math.floor(gameState.elapsedTime / 30) * 3, 30);
+  const types = [];
+  const availableTypes = Object.keys(ZOMBIE_TIERS).filter(t => ZOMBIE_TIERS[t].tier <= gameState.unlockedTiers);
+  
+  for (let i = 0; i < count; i++) {
+    const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+    types.push(type);
+  }
+  return types;
+}
+
+function endRound(winner) {
+  gameState.phase = 'result';
+  gameState.gameOver = true;
+  gameState.winner = winner;
+  
+  gameState.matchScores.push({
+    round: gameState.round,
+    timeSurvived: gameState.elapsedTime,
+    score1: gameState.score1,
+    score2: gameState.score2,
+    winner: winner
+  });
+  
+  if (gameState.mode === 'versus' && gameState.round >= 3) {
+    gameState.phase = 'gameover';
+  }
+}
+
+function switchSides() {
+  const temp = players.defender;
+  players.defender = players.attacker;
+  players.attacker = temp;
+  
+  if (players.defender) {
+    io.to(players.defender).emit('role', 'defender');
+    io.to(players.defender).emit('message', 'Теперь вы Защитник!');
+  }
+  if (players.attacker) {
+    io.to(players.attacker).emit('role', 'attacker');
+    io.to(players.attacker).emit('message', 'Теперь вы Атакующий!');
+  }
+}
+
+// ─────────────────── ИГРОВОЙ ЦИКЛ ───────────────────
+function updateGame() {
+  const now = Date.now();
+  const dt = Math.min(0.2, (now - gameState.lastUpdate) / 1000);
+  gameState.lastUpdate = now;
+  
+  if (gameState.phase === 'prep') {
+    gameState.prepTimer -= dt;
+    if (gameState.prepTimer <= 0) {
+      startPlayingPhase();
+    }
     return;
   }
-
-  game.elapsedTime += dt;
-  game.zombieEnergy = Math.min(game.maxEnergy, game.zombieEnergy + 5 * dt);
-
-  // Авто-орда
-  if (game.elapsedTime > 30) {
-    game.hordeTimer -= dt;
-    if (game.hordeTimer <= 0) {
-      const count = 5 + Math.floor(game.elapsedTime / 20);
-      for (let i = 0; i < count; i++) {
-        const types = ['basic', 'cone', 'bucket'];
-        const type = types[Math.floor(Math.random() * types.length)];
-        const row = Math.floor(Math.random() * ROWS);
-        const stats = ZOMBIE_STATS[type];
-        if (stats && game.zombieEnergy >= stats.cost) {
-          game.zombieEnergy -= stats.cost;
-          game.zombies.push({
-            type, row,
-            x: FIELD_END_X,
-            y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,
-            hp: stats.hp, maxHp: stats.hp, speed: stats.speed,
-            damage: stats.damage, reward: stats.reward, alive: true, slowed: false
-          });
-        }
-      }
-      game.hordeTimer = 90 + Math.random() * 60;
-    }
-  }
-
-  // кулдауны растений
-  Object.keys(game.plantCooldowns).forEach(k => {
-    game.plantCooldowns[k] = Math.max(0, game.plantCooldowns[k] - dt);
+  
+  if (gameState.phase !== 'playing') return;
+  
+  // Таймер идёт вверх
+  gameState.elapsedTime += dt;
+  gameState.gameTimer = gameState.elapsedTime;
+  
+  // Регенерация энергии (5 в секунду)
+  gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + 5 * dt);
+  
+  // Открытие тиров
+  unlockTiers();
+  
+  // Обновление кулдаунов растений
+  Object.keys(gameState.plantCooldowns).forEach(key => {
+    gameState.plantCooldowns[key] = Math.max(0, (gameState.plantCooldowns[key] || 0) - dt);
   });
-
+  
   // Растения
-  game.plants.forEach(p => {
+  gameState.plants.forEach(p => {
     if (!p.alive) return;
-    const s = PLANT_STATS[p.type];
-    if (!s) return;
-    p.shootTimer -= dt;
-
-    if (s.sunInterval) {
-      p.sunTimer -= dt;
+    p.shootTimer = (p.shootTimer || 0) - dt;
+    
+    if (p.type === 'sunflower') {
+      p.sunTimer = (p.sunTimer || 0) - dt;
       if (p.sunTimer <= 0) {
-        game.sunDrops.push({
+        gameState.sunDrops.push({
           x: p.x + (Math.random() - 0.5) * 40,
           y: p.y - 10,
-          alive: true
+          alive: true,
+          value: 25
         });
-        p.sunTimer = s.sunInterval + Math.random() * 4;
+        p.sunTimer = 8 + Math.random() * 4;
       }
     }
-
-    if (s.damage && p.shootTimer <= 0) {
-      if (game.zombies.some(z => z.row === p.row && z.alive && z.x > p.x)) {
-        game.projectiles.push({
-          x: p.x + 20,
-          y: p.y,
-          row: p.row,
-          damage: s.damage,
-          slow: s.slow || false,
+    
+    if ((p.type === 'peashooter' || p.type === 'snowpea') && p.shootTimer <= 0) {
+      const hasZombie = gameState.zombies.some(z =>
+        z.row === p.row && z.alive && z.x > p.x && z.x < FIELD_END_X + 150
+      );
+      if (hasZombie) {
+        gameState.projectiles.push({
+          x: p.x + 20, y: p.y, row: p.row,
+          damage: p.type === 'snowpea' ? 20 : 25,
+          slow: p.type === 'snowpea',
           alive: true
         });
-        p.shootTimer = s.shootInterval;
+        p.shootTimer = 1.2;
       }
     }
-
-    if (s.explosive && p.plantTime && now - p.plantTime > 600) {
-      game.zombies.forEach(z => {
-        if (z.alive && Math.hypot(z.x - p.x, z.y - p.y) < 160) z.hp -= 180;
+    
+    if (p.type === 'cherrybomb' && p.plantTime && now - p.plantTime > 600) {
+      gameState.zombies.forEach(z => {
+        if (!z.alive) return;
+        if (Math.hypot(z.x - p.x, z.y - p.y) < 150) {
+          z.hp -= 180;
+        }
       });
       p.alive = false;
     }
-
-    if (p.hp <= 0) p.alive = false;
   });
-
+  
   // Зомби
-  game.zombies.forEach(z => {
+  gameState.zombies.forEach(z => {
     if (!z.alive) return;
-
-    const block = game.plants.find(p => p.alive && p.row === z.row && Math.abs(z.x - p.x) < 45);
-    if (block) {
-      z.attackTimer -= dt;
+    
+    let blocking = gameState.plants.find(p =>
+      p.alive && p.row === z.row && Math.abs(z.x - p.x) < 45
+    );
+    
+    if (blocking) {
+      z.attackTimer = (z.attackTimer || 0) - dt;
       if (z.attackTimer <= 0) {
-        if (z.type === 'gargantuar') {
-          block.hp = 0;
-        } else {
-          block.hp -= z.damage;
-        }
+        blocking.hp -= z.damage;
         z.attackTimer = 0.7;
-        if (block.hp <= 0) {
-          block.alive = false;
-          game.zombieEnergy = Math.min(game.maxEnergy, game.zombieEnergy + 20);
+        if (blocking.hp <= 0) {
+          blocking.alive = false;
+          gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + 20);
         }
       }
     } else {
-      z.x -= z.speed * dt;
+      const speed = z.slowed ? z.speed * 0.4 : z.speed;
+      z.x -= speed * dt;
     }
-
+    
     // Газонокосилка
-    if (z.x < FIELD_START_X && game.lawnmowers[z.row]) {
-      game.lawnmowers[z.row] = false;
-      game.zombies.forEach(zz => { if (zz.row === z.row) zz.alive = false; });
+    if (z.x < FIELD_START_X && gameState.lawnmowers[z.row]) {
+      gameState.lawnmowers[z.row] = false;
+      gameState.zombies.forEach(zz => {
+        if (zz.row === z.row && zz.alive) zz.alive = false;
+      });
     }
-
-    // Дом
-    if (z.x < FIELD_START_X - 60 && !game.lawnmowers[z.row]) {
+    
+    // Зомби дошёл до дома
+    if (z.x < FIELD_START_X - 60 && !gameState.lawnmowers[z.row]) {
       z.alive = false;
-      game.score2++;
-      if (game.score2 >= 5) {
-        game.gameOver = true;
-        game.winner = 'attacker';
-      }
+      gameState.score2++;
+      if (gameState.score2 >= 5) endRound('attacker');
     }
-
+    
     if (z.hp <= 0) {
       z.alive = false;
-      game.score1++;
-      game.sunPoints += z.reward;
-      game.zombieEnergy = Math.min(game.maxEnergy, game.zombieEnergy + 10);
+      gameState.score1++;
+      gameState.zombieKillCount++;
+      gameState.sunPoints += z.reward;
+      gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + z.energyReward);
     }
   });
-
+  
   // Снаряды
-  game.projectiles.forEach(p => {
+  gameState.projectiles.forEach(p => {
     if (!p.alive) return;
     p.x += 400 * dt;
-    game.zombies.forEach(z => {
+    
+    gameState.zombies.forEach(z => {
       if (!z.alive || z.row !== p.row) return;
       if (Math.abs(p.x - z.x) < 22) {
         z.hp -= p.damage;
@@ -217,126 +297,239 @@ function update() {
         p.alive = false;
       }
     });
-    if (p.x > FIELD_END_X + 100) p.alive = false;
+    
+    if (p.x > FIELD_END_X + 200) p.alive = false;
   });
-
+  
   // Случайное солнце
   if (Math.random() < dt * 0.1) {
-    game.sunDrops.push({
-      x: FIELD_START_X + Math.random() * COLS * CELL_W,
+    gameState.sunDrops.push({
+      x: FIELD_START_X + Math.random() * (COLS * CELL_W),
       y: 90,
-      alive: true
+      alive: true,
+      value: 25
     });
   }
+  
+  // Очистка
+  gameState.plants = gameState.plants.filter(p => p.alive);
+  gameState.zombies = gameState.zombies.filter(z => z.alive);
+  gameState.projectiles = gameState.projectiles.filter(p => p.alive);
+  gameState.sunDrops = gameState.sunDrops.filter(s => s.alive);
+}
 
-  game.plants = game.plants.filter(p => p.alive);
-  game.zombies = game.zombies.filter(z => z.alive);
-  game.projectiles = game.projectiles.filter(p => p.alive);
-  game.sunDrops = game.sunDrops.filter(s => s.alive);
+// ─────────────────── ОТПРАВКА СОСТОЯНИЯ ───────────────────
+function broadcastState() {
+  const state = {
+    mode: gameState.mode,
+    round: gameState.round,
+    phase: gameState.phase,
+    plants: gameState.plants.filter(p => p.alive).map(p => ({
+      type: p.type, row: p.row, col: p.col, x: p.x, y: p.y,
+      hp: p.hp, maxHp: p.maxHp
+    })),
+    zombies: gameState.zombies.filter(z => z.alive).map(z => ({
+      type: z.type, row: z.row, x: z.x, y: z.y,
+      hp: z.hp, maxHp: z.maxHp, slowed: z.slowed || false
+    })),
+    projectiles: gameState.projectiles.filter(p => p.alive).map(p => ({
+      x: p.x, y: p.y, row: p.row, slow: p.slow
+    })),
+    sunDrops: gameState.sunDrops.filter(s => s.alive).map((s, i) => ({
+      id: i, x: s.x, y: s.y, value: s.value
+    })),
+    lawnmowers: gameState.lawnmowers,
+    sunPoints: Math.floor(gameState.sunPoints),
+    zombieEnergy: Math.floor(gameState.zombieEnergy),
+    maxEnergy: gameState.maxEnergy,
+    spawnLocked: gameState.spawnLocked,
+    prepTimer: Math.ceil(gameState.prepTimer),
+    gameTimer: Math.ceil(gameState.gameTimer),
+    elapsedTime: gameState.elapsedTime,
+    unlockedTiers: gameState.unlockedTiers,
+    zombieKillCount: gameState.zombieKillCount,
+    plantCooldowns: gameState.plantCooldowns,
+    score1: gameState.score1,
+    score2: gameState.score2,
+    roundsWon: gameState.roundsWon,
+    matchScores: gameState.matchScores,
+    gameOver: gameState.gameOver,
+    winner: gameState.winner
+  };
+  
+  io.emit('state', state);
 }
 
 setInterval(() => {
-  update();
-  io.emit('state', {
-    plants: game.plants.filter(p => p.alive).map(p => ({
-      type: p.type, row: p.row, col: p.col, x: p.x, y: p.y, hp: p.hp
-    })),
-    zombies: game.zombies.filter(z => z.alive).map(z => ({
-      type: z.type, row: z.row, x: z.x, y: z.y, hp: z.hp, slowed: z.slowed
-    })),
-    projectiles: game.projectiles.filter(p => p.alive).map(p => ({
-      x: p.x, y: p.y, row: p.row
-    })),
-    sunDrops: game.sunDrops.filter(s => s.alive).map((s, i) => ({
-      id: i, x: s.x, y: s.y
-    })),
-    lawnmowers: game.lawnmowers,
-    sunPoints: Math.floor(game.sunPoints),
-    zombieEnergy: Math.floor(game.zombieEnergy),
-    spawnLocked: game.spawnLocked,
-    prepTimer: Math.ceil(game.prepTimer),
-    elapsedTime: game.elapsedTime,
-    plantCooldowns: game.plantCooldowns,
-    score1: game.score1,
-    score2: game.score2,
-    gameOver: game.gameOver,
-    winner: game.winner,
-    hordeTimer: Math.ceil(game.hordeTimer)
-  });
+  if (gameState.phase !== 'lobby') {
+    updateGame();
+  }
+  broadcastState();
 }, 1000 / 30);
 
-io.on('connection', socket => {
-  if (!players.defender) {
+// ─────────────────── ПОДКЛЮЧЕНИЕ ИГРОКОВ ───────────────────
+io.on('connection', (socket) => {
+  console.log('Подключился:', socket.id);
+  
+  if (!players.player1) {
+    players.player1 = socket.id;
     players.defender = socket.id;
     socket.emit('role', 'defender');
-  } else if (!players.attacker) {
+    socket.emit('isHost', true);
+  } else if (!players.player2) {
+    players.player2 = socket.id;
     players.attacker = socket.id;
     socket.emit('role', 'attacker');
-    resetRound();
   } else {
-    socket.emit('error', 'Полно');
+    socket.emit('error', 'Игра заполнена');
     socket.disconnect();
     return;
   }
-
-  socket.on('plant', data => {
-    if (socket.id !== players.defender || game.gameOver || game.spawnLocked) return;
-    const s = PLANT_STATS[data.type];
-    if (!s || game.sunPoints < s.cost || (game.plantCooldowns[data.type] || 0) > 0) return;
-    if (game.plants.some(p => p.alive && p.row === data.row && p.col === data.col)) return;
-    game.sunPoints -= s.cost;
-    game.plantCooldowns[data.type] = s.cooldown || 3;
-    game.plants.push({
+  
+  socket.on('selectMode', (mode) => {
+    if (socket.id !== players.player1 || gameState.phase !== 'lobby') return;
+    gameState.mode = mode;
+    gameState.round = 0;
+    startPrepPhase();
+    io.emit('message', `Режим: ${mode === 'endless' ? 'Бесконечный бой' : 'Соревновательный'}`);
+  });
+  
+  socket.on('plant', (data) => {
+    if (socket.id !== players.defender || gameState.phase !== 'playing') return;
+    if (gameState.sunPoints < PLANT_COSTS[data.type]) return;
+    if (data.row < 0 || data.row >= ROWS || data.col < 0 || data.col >= COLS) return;
+    if (gameState.plants.some(p => p.alive && p.row === data.row && p.col === data.col)) return;
+    
+    const cooldownKey = data.type;
+    if ((gameState.plantCooldowns[cooldownKey] || 0) > 0) return;
+    
+    gameState.sunPoints -= PLANT_COSTS[data.type];
+    gameState.plantCooldowns[cooldownKey] = PLANT_COOLDOWNS[data.type];
+    
+    gameState.plants.push({
       type: data.type, row: data.row, col: data.col,
       x: FIELD_START_X + data.col * CELL_W + CELL_W / 2,
       y: FIELD_TOP_Y + data.row * CELL_H + CELL_H / 2,
-      hp: s.hp, maxHp: s.hp,
+      hp: PLANT_HP[data.type], maxHp: PLANT_HP[data.type],
       shootTimer: 0, sunTimer: 0,
-      plantTime: Date.now(), alive: true
+      plantTime: Date.now(),
+      alive: true
     });
   });
-
-  socket.on('collect', data => {
+  
+  socket.on('collect', (data) => {
     if (socket.id !== players.defender) return;
-    const s = game.sunDrops[data.id];
-    if (s?.alive) {
-      game.sunPoints += 25;
-      s.alive = false;
+    const sun = gameState.sunDrops[data.id];
+    if (sun && sun.alive) {
+      gameState.sunPoints += sun.value;
+      sun.alive = false;
     }
   });
-
-  socket.on('shovel', data => {
-    if (socket.id !== players.defender || game.gameOver || game.spawnLocked) return;
-    const plant = game.plants.find(p => p.alive && p.row === data.row && p.col === data.col);
-    if (plant) {
-      const s = PLANT_STATS[plant.type];
-      if (s) {
-        game.sunPoints += Math.floor(s.cost * 0.5);
-        plant.alive = false;
-      }
-    }
-  });
-
-  socket.on('zombie', data => {
-    if (socket.id !== players.attacker || game.gameOver || game.spawnLocked) return;
-    const s = ZOMBIE_STATS[data.type];
-    if (!s || game.zombieEnergy < s.cost) return;
-    game.zombieEnergy -= s.cost;
-    game.zombies.push({
-      type: data.type,
-      row: data.row,
-      x: FIELD_END_X,
-      y: FIELD_TOP_Y + data.row * CELL_H + CELL_H / 2,
+  
+  socket.on('zombie', (data) => {
+    if (socket.id !== players.attacker || gameState.phase !== 'playing' || gameState.spawnLocked) return;
+    
+    const tier = ZOMBIE_TIERS[data.type]?.tier;
+    if (tier === undefined || tier > gameState.unlockedTiers) return;
+    if (gameState.zombieEnergy < ZOMBIE_ENERGY_COSTS[data.type]) return;
+    
+    const row = data.row !== undefined ? data.row : Math.floor(Math.random() * ROWS);
+    if (row < 0 || row >= ROWS) return;
+    
+    gameState.zombieEnergy -= ZOMBIE_ENERGY_COSTS[data.type];
+    const s = ZOMBIE_TIERS[data.type];
+    gameState.zombies.push({
+      type: data.type, row: row,
+      x: ZOMBIE_SPAWN_X, // Прямо на правом краю
+      y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,
       hp: s.hp, maxHp: s.hp, speed: s.speed,
-      damage: s.damage, reward: s.reward, alive: true, slowed: false
+      damage: s.damage, reward: s.reward,
+      energyReward: s.energyReward,
+      attackTimer: 0.3, slowed: false, alive: true
     });
   });
-
+  
+  socket.on('horde', () => {
+    if (socket.id !== players.attacker || gameState.phase !== 'playing' || gameState.spawnLocked) return;
+    if (gameState.elapsedTime < 90) return;
+    
+    const types = getHordeComposition();
+    types.forEach(type => {
+      if (gameState.zombieEnergy < ZOMBIE_ENERGY_COSTS[type]) return;
+      gameState.zombieEnergy -= ZOMBIE_ENERGY_COSTS[type];
+      const s = ZOMBIE_TIERS[type];
+      const row = Math.floor(Math.random() * ROWS);
+      gameState.zombies.push({
+        type, row: row,
+        x: ZOMBIE_SPAWN_X,
+        y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,
+        hp: s.hp, maxHp: s.hp, speed: s.speed,
+        damage: s.damage, reward: s.reward,
+        energyReward: s.energyReward,
+        attackTimer: 0.2, slowed: false, alive: true
+      });
+    });
+  });
+  
+  socket.on('nextRound', () => {
+    if (gameState.mode !== 'versus' || gameState.phase !== 'result') return;
+    gameState.round++;
+    if (gameState.round >= 4) {
+      gameState.phase = 'gameover';
+      io.emit('message', `Матч окончен! Счёт: ${gameState.roundsWon[0]} - ${gameState.roundsWon[1]}`);
+    } else {
+      switchSides();
+      startPrepPhase();
+      io.emit('message', `Раунд ${gameState.round + 1}/4`);
+    }
+  });
+  
+  socket.on('restart', () => {
+    gameState = {
+      mode: null,
+      round: 0,
+      phase: 'lobby',
+      plants: [],
+      zombies: [],
+      projectiles: [],
+      sunDrops: [],
+      lawnmowers: Array(ROWS).fill(true),
+      sunPoints: 150,
+      zombieEnergy: 60,
+      maxEnergy: 300,
+      prepTimer: 15,
+      gameTimer: 0,
+      elapsedTime: 0,
+      spawnLocked: true,
+      unlockedTiers: 0,
+      zombieKillCount: 0,
+      plantCooldowns: {},
+      score1: 0,
+      score2: 0,
+      roundsWon: [0, 0],
+      matchScores: [],
+      gameOver: false,
+      winner: null,
+      lastUpdate: Date.now()
+    };
+    players.defender = players.player1;
+    players.attacker = players.player2;
+    if (players.player1) {
+      io.to(players.player1).emit('role', 'defender');
+      io.to(players.player1).emit('isHost', true);
+    }
+    if (players.player2) io.to(players.player2).emit('role', 'attacker');
+    io.emit('message', 'Игра перезапущена. Выберите режим.');
+  });
+  
   socket.on('disconnect', () => {
+    if (socket.id === players.player1) players.player1 = null;
+    if (socket.id === players.player2) players.player2 = null;
     if (socket.id === players.defender) players.defender = null;
     if (socket.id === players.attacker) players.attacker = null;
+    gameState.phase = 'lobby';
   });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log('v3.2 порт ' + PORT));
+server.listen(PORT, () => console.log('🎮 Сервер на порту ' + PORT));
