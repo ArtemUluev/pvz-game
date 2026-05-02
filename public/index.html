@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>PvZ Мультиплеер v2.0</title>
+    <title>PvZ Мультиплеер v3.0</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
         *{margin:0;padding:0;box-sizing:border-box}
@@ -14,114 +14,60 @@
             align-items:center;
             min-height:100vh;
             font-family:'Segoe UI',Arial,sans-serif;
-            touch-action:manipulation;
-            user-select:none;
+            touch-action:manipulation;user-select:none;
         }
         .wrapper{
-            display:flex;
-            flex-direction:column;
-            align-items:center;
-            gap:8px;
-            padding:5px;
-            width:100%;
-            max-width:960px;
+            display:flex;flex-direction:column;align-items:center;gap:6px;
+            padding:5px;width:100%;max-width:960px;
         }
-        h1{color:#fff;font-size:clamp(1.2em,4vw,1.8em);text-align:center}
+        h1{color:#fff;font-size:clamp(1.1em,4vw,1.6em);text-align:center}
         h1 span{color:#ff5722}
-        canvas{
-            width:100%;
-            max-width:950px;
-            border:2px solid #333;
-            border-radius:10px;
-            cursor:crosshair;
-            background:#000;
-        }
+        canvas{width:100%;max-width:950px;border:2px solid #333;border-radius:10px;cursor:crosshair;background:#000}
         .panel{
-            display:flex;
-            gap:10px;
-            background:#16213e;
-            padding:8px 16px;
-            border-radius:8px;
-            align-items:center;
-            flex-wrap:wrap;
-            justify-content:center;
+            display:flex;gap:8px;background:#16213e;padding:6px 14px;
+            border-radius:8px;align-items:center;flex-wrap:wrap;justify-content:center;
         }
-        .role{
-            padding:6px 14px;
-            border-radius:16px;
-            font-weight:700;
-            font-size:14px;
-        }
+        .role{padding:5px 12px;border-radius:14px;font-weight:700;font-size:13px}
         .defender{background:rgba(76,175,80,0.3);color:#a5d6a7;border:1px solid #4caf50}
         .attacker{background:rgba(255,87,34,0.3);color:#ffab91;border:1px solid #ff5722}
-        .score{color:#fff;font-size:1.3em;font-weight:900}
-        .timer{color:#ffeb3b;font-weight:700;font-size:1.1em}
+        .score{color:#fff;font-size:1.2em;font-weight:900}
+        .timer{color:#ffeb3b;font-weight:700;font-size:1em}
+        .info-row{display:flex;gap:15px;color:#aaa;font-size:0.8em;flex-wrap:wrap;justify-content:center}
         
-        .mode-select{
-            display:none;
-            flex-direction:column;
-            gap:15px;
-            align-items:center;
-            padding:20px;
-            background:#16213e;
-            border-radius:12px;
-        }
+        .mode-select{display:none;flex-direction:column;gap:12px;align-items:center;padding:18px;background:#16213e;border-radius:12px}
         .mode-select.show{display:flex}
-        .mode-btn{
-            padding:12px 24px;
-            border:none;
-            border-radius:10px;
-            font-weight:700;
-            font-size:1em;
-            cursor:pointer;
-            color:#fff;
-            width:250px;
-        }
+        .mode-btn{padding:10px 20px;border:none;border-radius:8px;font-weight:700;font-size:0.95em;cursor:pointer;color:#fff;width:220px}
         .mode-endless{background:#4caf50}
         .mode-versus{background:#ff5722}
         
-        .zombie-btns{
-            display:none;
-            flex-wrap:wrap;
-            gap:6px;
-            justify-content:center;
-        }
+        .zombie-btns{display:none;flex-wrap:wrap;gap:5px;justify-content:center}
         .zombie-btns.show{display:flex}
-        .zombie-btn{
-            padding:10px 14px;
-            border:none;
-            border-radius:8px;
-            font-weight:700;
-            color:#fff;
-            cursor:pointer;
-            font-size:13px;
-            min-width:50px;
-        }
-        .zombie-btn:active{transform:scale(0.95);opacity:0.8}
-        .row-btn{background:#4a148c}
-        .special{background:#bf360c}
-        .horde-btn{background:#e65100}
         
-        .btn{
-            padding:10px 20px;
-            border:none;
-            border-radius:20px;
-            font-weight:700;
-            cursor:pointer;
-            color:#fff;
+        /* Стиль кнопок зомби как карточки растений */
+        .zombie-card{
+            width:65px;height:80px;border-radius:8px;border:2px solid #555;
+            cursor:pointer;display:flex;flex-direction:column;align-items:center;
+            justify-content:center;font-size:10px;font-weight:700;color:#fff;
+            transition:0.1s;position:relative;
         }
+        .zombie-card:active{transform:scale(0.93)}
+        .zombie-card.locked{opacity:0.4;cursor:not-allowed}
+        .zombie-card .zombie-icon{font-size:22px;margin-bottom:2px}
+        .zombie-card .zombie-cost{font-size:9px;color:#ffeb3b}
+        
+        .zombie-card.basic{background:#2e7d32;border-color:#4caf50}
+        .zombie-card.cone{background:#e65100;border-color:#ff9800}
+        .zombie-card.bucket{background:#4e342e;border-color:#795548}
+        .zombie-card.runner{background:#b71c1c;border-color:#f44336}
+        .zombie-card.gargantuar{background:#4a148c;border-color:#9c27b0}
+        .zombie-card.horde{background:#bf360c;border-color:#ff5722}
+        .zombie-card.selected{border-color:#fff;box-shadow:0 0 10px #fff}
+        
+        .btn{padding:8px 18px;border:none;border-radius:18px;font-weight:700;cursor:pointer;color:#fff;font-size:0.85em}
         .btn-next{background:#2196f3}
         .btn-restart{background:#ff9800;color:#000}
-        
-        .message{
-            color:#ffeb3b;
-            font-weight:700;
-            text-align:center;
-            padding:5px;
-            min-height:24px;
-        }
-        .info{color:#aaa;font-size:0.85em;text-align:center}
-        kbd{background:#333;padding:2px 6px;border-radius:3px;color:#fff}
+        .message{color:#ffeb3b;font-weight:700;text-align:center;min-height:20px;font-size:0.9em}
+        kbd{background:#333;padding:1px 5px;border-radius:3px;color:#fff}
     </style>
 </head>
 <body>
@@ -131,7 +77,7 @@
     <div class="mode-select" id="modeSelect">
         <h3 style="color:#fff;">Выберите режим:</h3>
         <button class="mode-btn mode-endless" onclick="selectMode('endless')">🏰 Бесконечный бой</button>
-        <button class="mode-btn mode-versus" onclick="selectMode('versus')">⚔️ Соревновательный (4 раунда)</button>
+        <button class="mode-btn mode-versus" onclick="selectMode('versus')">⚔️ Соревновательный</button>
     </div>
     
     <canvas id="game" width="950" height="600"></canvas>
@@ -144,23 +90,48 @@
         <span class="timer" id="timerDisplay"></span>
     </div>
     
-    <div class="zombie-btns" id="zombieBtns">
-        <button class="zombie-btn row-btn" onclick="spawnZombie('basic',0)">Ряд 1</button>
-        <button class="zombie-btn row-btn" onclick="spawnZombie('basic',1)">Ряд 2</button>
-        <button class="zombie-btn row-btn" onclick="spawnZombie('basic',2)">Ряд 3</button>
-        <button class="zombie-btn row-btn" onclick="spawnZombie('basic',3)">Ряд 4</button>
-        <button class="zombie-btn row-btn" onclick="spawnZombie('basic',4)">Ряд 5</button>
-        <button class="zombie-btn special" onclick="spawnZombie('cone',-1)">Конус</button>
-        <button class="zombie-btn special" onclick="spawnZombie('bucket',-1)">Ведро</button>
-        <button class="zombie-btn horde-btn" onclick="spawnHorde()">Орда</button>
+    <div class="info-row">
+        <span id="tierInfo"></span>
+        <span id="hordeInfo"></span>
     </div>
     
-    <div style="display:flex;gap:10px;">
+    <div class="zombie-btns" id="zombieBtns">
+        <div class="zombie-card basic" data-type="basic">
+            <span class="zombie-icon">🧟</span>
+            <span>Обычный</span>
+            <span class="zombie-cost">⚡30</span>
+        </div>
+        <div class="zombie-card cone locked" data-type="cone">
+            <span class="zombie-icon">🪖</span>
+            <span>Конус</span>
+            <span class="zombie-cost">⚡50</span>
+        </div>
+        <div class="zombie-card bucket locked" data-type="bucket">
+            <span class="zombie-icon">🪣</span>
+            <span>Ведро</span>
+            <span class="zombie-cost">⚡80</span>
+        </div>
+        <div class="zombie-card runner locked" data-type="runner">
+            <span class="zombie-icon">🏃</span>
+            <span>Бегун</span>
+            <span class="zombie-cost">⚡40</span>
+        </div>
+        <div class="zombie-card gargantuar locked" data-type="gargantuar">
+            <span class="zombie-icon">👹</span>
+            <span>Гаргантюа</span>
+            <span class="zombie-cost">⚡150</span>
+        </div>
+        <div class="zombie-card horde locked" id="hordeCard">
+            <span class="zombie-icon">💀</span>
+            <span>Орда</span>
+            <span class="zombie-cost">1.5мин</span>
+        </div>
+    </div>
+    
+    <div style="display:flex;gap:8px;">
         <button class="btn btn-next" id="btnNext" style="display:none;" onclick="nextRound()">▶ Следующий раунд</button>
         <button class="btn btn-restart" onclick="restartGame()">🔄 Рестарт</button>
     </div>
-    
-    <div class="info" id="infoText"></div>
 </div>
 
 <script>
@@ -168,39 +139,28 @@ const socket = io();
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
-let myRole = null;
-let isHost = false;
-let gameData = {};
-let selectedPlant = null;
+let myRole = null, isHost = false, gameData = {}, selectedPlant = null;
+let selectedZombie = null;
+let unlockedTypes = [];
 
 const COLORS = {
-    sunflower:'#ffeb3b', peashooter:'#4caf50', walnut:'#8d6e63',
-    snowpea:'#81d4fa', cherrybomb:'#f44336',
-    basic:'#9ccc65', cone:'#ff9800', bucket:'#795548'
+    sunflower:'#ffeb3b',peashooter:'#4caf50',walnut:'#8d6e63',snowpea:'#81d4fa',cherrybomb:'#f44336',
+    basic:'#9ccc65',cone:'#ff9800',bucket:'#795548',runner:'#f44336',gargantuar:'#9c27b0'
 };
+const PLANT_NAMES = {sunflower:'☀Подсолнух',peashooter:'🔫Горох',walnut:'🛡Орех',snowpea:'❄Ледяной',cherrybomb:'💥Бомба'};
 const COSTS = {sunflower:50,peashooter:100,walnut:50,snowpea:175,cherrybomb:150};
 
-// Получение роли
-socket.on('role', (role) => {
-    myRole = role;
-    updateRoleDisplay();
-});
-
+socket.on('role', (role) => { myRole = role; updateRoleDisplay(); });
 socket.on('isHost', (host) => {
     isHost = host;
-    if (isHost && !gameData.mode) {
-        document.getElementById('modeSelect').classList.add('show');
-    }
+    if (isHost) document.getElementById('modeSelect').classList.add('show');
 });
-
-socket.on('state', (data) => {
-    gameData = data;
-    updateUI();
-});
-
-socket.on('message', (msg) => {
+socket.on('state', (data) => { gameData = data; updateUI(); });
+socket.on('message', (msg) => { 
     document.getElementById('message').textContent = msg;
+    setTimeout(() => { if (document.getElementById('message').textContent === msg) document.getElementById('message').textContent = ''; }, 4000);
 });
+socket.on('unlockedZombies', (types) => { unlockedTypes = types; updateZombieCards(); });
 
 function updateRoleDisplay() {
     const el = document.getElementById('roleDisplay');
@@ -208,12 +168,10 @@ function updateRoleDisplay() {
         el.textContent = '🛡️ Защитник';
         el.className = 'role defender';
         document.getElementById('zombieBtns').classList.remove('show');
-        document.getElementById('infoText').innerHTML = '🖱️ Выберите растение сверху → клик по полю';
-    } else if (myRole === 'attacker') {
+    } else {
         el.textContent = '🧟 Атакующий';
         el.className = 'role attacker';
         document.getElementById('zombieBtns').classList.add('show');
-        document.getElementById('infoText').innerHTML = '👆 Кнопки или <kbd>1-5</kbd> <kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd>';
     }
 }
 
@@ -223,22 +181,39 @@ function updateUI() {
     if (gameData.phase === 'prep') {
         document.getElementById('timerDisplay').textContent = `Подготовка: ${gameData.prepTimer}с`;
     } else if (gameData.phase === 'playing') {
-        const mins = Math.floor(gameData.gameTimer/60);
-        const secs = Math.floor(gameData.gameTimer%60);
-        document.getElementById('timerDisplay').textContent = `⏱ ${mins}:${String(secs).padStart(2,'0')}`;
-    } else {
-        document.getElementById('timerDisplay').textContent = '';
+        const m = Math.floor((gameData.elapsedTime||0)/60);
+        const s = Math.floor((gameData.elapsedTime||0)%60);
+        document.getElementById('timerDisplay').textContent = `⏱ ${m}:${String(s).padStart(2,'0')}`;
     }
     
-    if (gameData.phase === 'result' && gameData.mode === 'versus' && gameData.round < 3) {
-        document.getElementById('btnNext').style.display = 'inline-block';
-    } else {
-        document.getElementById('btnNext').style.display = 'none';
-    }
+    document.getElementById('tierInfo').textContent = `Тир: ${(gameData.unlockedTiers||0)+1}/5 | Убито: ${gameData.zombieKillCount||0}`;
+    document.getElementById('hordeInfo').textContent = (gameData.elapsedTime||0) < 90 ? 'Орда через ' + Math.ceil(90-(gameData.elapsedTime||0)) + 'с' : 'Орда доступна!';
+    
+    document.getElementById('btnNext').style.display = (gameData.phase==='result' && gameData.mode==='versus' && gameData.round<3) ? 'inline-block' : 'none';
     
     if (gameData.phase === 'gameover' && gameData.mode === 'versus') {
-        document.getElementById('message').textContent = 
-            `Матч окончен! Победы: ${gameData.roundsWon?.[0]||0} - ${gameData.roundsWon?.[1]||0}`;
+        document.getElementById('message').textContent = `Матч окончен! Победы: ${(gameData.roundsWon||[0,0])[0]} - ${(gameData.roundsWon||[0,0])[1]}`;
+    }
+    
+    updateZombieCards();
+}
+
+function updateZombieCards() {
+    document.querySelectorAll('.zombie-card[data-type]').forEach(card => {
+        const type = card.dataset.type;
+        const tier = {basic:0,cone:1,bucket:2,runner:3,gargantuar:4}[type];
+        if (tier <= (gameData.unlockedTiers||0)) {
+            card.classList.remove('locked');
+        } else {
+            card.classList.add('locked');
+        }
+    });
+    
+    const hordeCard = document.getElementById('hordeCard');
+    if ((gameData.elapsedTime||0) >= 90) {
+        hordeCard.classList.remove('locked');
+    } else {
+        hordeCard.classList.add('locked');
     }
 }
 
@@ -247,34 +222,110 @@ function selectMode(mode) {
     document.getElementById('modeSelect').classList.remove('show');
 }
 
-function spawnZombie(type, row) {
-    if (row < 0) row = Math.floor(Math.random() * 5);
-    socket.emit('zombie', { type, row });
-}
-
-function spawnHorde() {
-    socket.emit('horde');
-}
-
-function nextRound() {
-    socket.emit('nextRound');
-}
-
+function nextRound() { socket.emit('nextRound'); }
 function restartGame() {
     socket.emit('restart');
     document.getElementById('modeSelect').classList.add('show');
 }
 
-// Отрисовка
+// Обработка кликов по карточкам зомби
+document.querySelectorAll('.zombie-card').forEach(card => {
+    card.addEventListener('click', () => {
+        if (myRole !== 'attacker' || gameData.spawnLocked || card.classList.contains('locked')) return;
+        
+        if (card.id === 'hordeCard') {
+            socket.emit('horde');
+            return;
+        }
+        
+        const type = card.dataset.type;
+        if (selectedZombie === type) {
+            socket.emit('zombie', { type, row: Math.floor(Math.random() * 5) });
+        } else {
+            selectedZombie = type;
+            document.querySelectorAll('.zombie-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+        }
+    });
+});
+
+// Клик по канвасу для посадки (защитник) или размещения зомби (атакующий)
+canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = 950 / rect.width;
+    const scaleY = 600 / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    
+    if (myRole === 'defender' && gameData.phase === 'playing') {
+        // Сбор солнца
+        if (gameData.sunDrops) {
+            for (let i = 0; i < gameData.sunDrops.length; i++) {
+                const s = gameData.sunDrops[i];
+                if (s.alive === false) continue;
+                if (Math.hypot(x - s.x, y - s.y) < 25) {
+                    socket.emit('collect', { id: i });
+                    return;
+                }
+            }
+        }
+        
+        // Выбор растения в верхней панели
+        if (y < 80 && y > 0) {
+            const types = Object.keys(COSTS);
+            for (let i = 0; i < types.length; i++) {
+                const bx = 10 + i*110;
+                if (x >= bx && x <= bx+100 && (gameData.sunPoints||0) >= COSTS[types[i]]) {
+                    selectedPlant = selectedPlant === types[i] ? null : types[i];
+                    return;
+                }
+            }
+        }
+        
+        // Посадка
+        if (selectedPlant && y > 120) {
+            const col = Math.floor((x - 150) / 85);
+            const row = Math.floor((y - 120) / 90);
+            if (col >= 0 && col < 9 && row >= 0 && row < 5) {
+                socket.emit('plant', { type: selectedPlant, row, col });
+            }
+        }
+    }
+    
+    if (myRole === 'attacker' && gameData.phase === 'playing' && !gameData.spawnLocked && selectedZombie && y > 120) {
+        const row = Math.floor((y - 120) / 90);
+        if (row >= 0 && row < 5) {
+            socket.emit('zombie', { type: selectedZombie, row });
+        }
+    }
+});
+
+// Клавиатура
+document.addEventListener('keydown', (e) => {
+    if (myRole !== 'attacker' || gameData.spawnLocked || gameData.phase !== 'playing') return;
+    const key = e.key.toLowerCase();
+    let type = null, row = Math.floor(Math.random() * 5);
+    
+    if (key >= '1' && key <= '5') { type = 'basic'; row = parseInt(key)-1; }
+    else if (key === 'q') type = 'cone';
+    else if (key === 'w') type = 'bucket';
+    else if (key === 'r') type = 'runner';
+    else if (key === 'g') type = 'gargantuar';
+    else if (key === 'e') { socket.emit('horde'); return; }
+    else return;
+    
+    socket.emit('zombie', { type, row });
+    selectedZombie = type;
+});
+
+// ─────────────────── ОТРИСОВКА ───────────────────
 function draw() {
     ctx.clearRect(0, 0, 950, 600);
     
     if (!gameData.plants) {
-        ctx.fillStyle = '#fff';
-        ctx.font = '20px Arial';
-        ctx.textAlign = 'center';
+        ctx.fillStyle = '#fff'; ctx.font = '18px Arial'; ctx.textAlign = 'center';
         ctx.fillText('Ожидание игроков...', 475, 300);
-        return;
+        ctx.textAlign = 'left'; return;
     }
     
     // Газон
@@ -291,57 +342,58 @@ function draw() {
             if (active) {
                 ctx.fillStyle = '#c62828';
                 ctx.fillRect(115, 145 + row*90, 30, 15);
-                ctx.fillStyle = '#fff';
-                ctx.font = '8px Arial';
+                ctx.fillStyle = '#fff'; ctx.font = '8px Arial';
                 ctx.fillText('ГАЗОН', 116, 155 + row*90);
             }
         });
     }
     
-    // Верхняя панель защитника
+    // Верхняя панель
     if (myRole === 'defender') {
-        ctx.fillStyle = '#1b5e20';
-        ctx.fillRect(0, 0, 950, 80);
-        
+        ctx.fillStyle = '#1b5e20'; ctx.fillRect(0, 0, 950, 80);
         Object.keys(COSTS).forEach((type, i) => {
             const x = 10 + i*110;
             const canBuy = (gameData.sunPoints||0) >= COSTS[type];
-            ctx.fillStyle = selectedPlant===type ? '#fff9c4' : (canBuy ? '#c8e6c9' : '#666');
+            const onCooldown = (gameData.plantCooldowns?.[type] || 0) > 0;
+            ctx.fillStyle = selectedPlant===type ? '#fff9c4' : (onCooldown ? '#555' : (canBuy ? '#c8e6c9' : '#666'));
             ctx.fillRect(x, 10, 100, 60);
-            ctx.fillStyle = COLORS[type];
-            ctx.beginPath(); ctx.arc(x+50, 30, 15, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#fff'; ctx.font = '11px Arial'; ctx.textAlign = 'center';
-            ctx.fillText(type === 'sunflower' ? 'Подсолнух' : type === 'peashooter' ? 'Горох' : type === 'walnut' ? 'Орех' : type === 'snowpea' ? 'Ледяной' : 'Бомба', x+50, 55);
-            ctx.fillText('☀'+COSTS[type], x+50, 68);
+            ctx.fillStyle = onCooldown ? '#888' : COLORS[type];
+            ctx.beginPath(); ctx.arc(x+50, 28, 14, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center';
+            ctx.fillText(PLANT_NAMES[type], x+50, 50);
+            ctx.fillText(onCooldown ? `⏳${Math.ceil(gameData.plantCooldowns[type])}с` : `☀${COSTS[type]}`, x+50, 65);
         });
         ctx.textAlign = 'left';
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Arial';
-        ctx.fillText('☀ ' + (gameData.sunPoints||0), 580, 50);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial';
+        ctx.fillText('☀ ' + (gameData.sunPoints||0), 580, 45);
+        ctx.fillText('🔫 ' + (selectedPlant ? PLANT_NAMES[selectedPlant] : 'Нет'), 580, 65);
     }
     
-    // Панель атакующего
     if (myRole === 'attacker') {
-        ctx.fillStyle = '#4a148c';
-        ctx.fillRect(0, 0, 950, 80);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Arial';
-        ctx.fillText('⚡ ' + (gameData.zombieEnergy||0) + ' / 250', 20, 50);
+        ctx.fillStyle = '#4a148c'; ctx.fillRect(0, 0, 950, 80);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial';
+        ctx.fillText('⚡ ' + (gameData.zombieEnergy||0) + '/' + (gameData.maxEnergy||300), 15, 35);
+        ctx.fillText('🧟 ' + (selectedZombie || 'Выберите зомби'), 15, 60);
         if (gameData.spawnLocked) {
-            ctx.fillStyle = '#ff5722'; ctx.font = '14px Arial';
-            ctx.fillText('Спавн через ' + (gameData.prepTimer||0) + 'с', 20, 70);
+            ctx.fillStyle = '#ff5722'; ctx.font = '13px Arial';
+            ctx.fillText('Спавн через ' + (gameData.prepTimer||0) + 'с', 15, 75);
         }
     }
     
     // Солнце
     if (gameData.sunDrops) {
-        gameData.sunDrops.forEach((s, i) => {
+        gameData.sunDrops.forEach(s => {
             if (s.alive === false) return;
+            // Большое солнце
+            ctx.fillStyle = 'rgba(255,235,59,0.4)';
+            ctx.beginPath(); ctx.arc(s.x, s.y, 16, 0, Math.PI*2); ctx.fill();
             ctx.fillStyle = '#ffeb3b';
-            ctx.beginPath(); ctx.arc(s.x, s.y, 8, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#fff'; ctx.font = '12px Arial'; ctx.textAlign = 'center';
-            ctx.fillText('☀', s.x, s.y+4);
+            ctx.beginPath(); ctx.arc(s.x, s.y, 12, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('☀', s.x, s.y+5);
+            ctx.textAlign = 'left';
         });
     }
-    ctx.textAlign = 'left';
     
     // Растения
     if (gameData.plants) {
@@ -349,10 +401,9 @@ function draw() {
             ctx.fillStyle = COLORS[p.type] || '#888';
             ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, Math.PI*2); ctx.fill();
             if (p.hp < p.maxHp) {
-                ctx.fillStyle = '#333';
-                ctx.fillRect(p.x-15, p.y-25, 30, 4);
+                ctx.fillStyle = '#333'; ctx.fillRect(p.x-15, p.y-28, 30, 4);
                 ctx.fillStyle = p.hp/p.maxHp > 0.5 ? '#4caf50' : '#ff9800';
-                ctx.fillRect(p.x-15, p.y-25, 30*(p.hp/p.maxHp), 4);
+                ctx.fillRect(p.x-15, p.y-28, 30*(p.hp/p.maxHp), 4);
             }
         });
     }
@@ -379,89 +430,22 @@ function draw() {
         });
     }
     
-    // Конец игры / результат
+    // Конец игры
     if (gameData.gameOver) {
         ctx.fillStyle = 'rgba(0,0,0,0.7)';
         ctx.fillRect(0, 0, 950, 600);
-        ctx.fillStyle = '#fff'; ctx.font = '30px Arial'; ctx.textAlign = 'center';
-        if (gameData.winner === 'defender') {
-            ctx.fillText('🌱 Защитник выстоял!', 475, 280);
-        } else if (gameData.winner === 'attacker') {
-            ctx.fillText('🧟 Зомби прорвались!', 475, 280);
-        } else {
-            ctx.fillText('⏰ Время вышло!', 475, 280);
-        }
-        ctx.font = '20px Arial';
-        ctx.fillText(`Счёт: ${gameData.score1} - ${gameData.score2}`, 475, 320);
+        ctx.fillStyle = '#fff'; ctx.font = '28px Arial'; ctx.textAlign = 'center';
+        if (gameData.winner === 'defender') ctx.fillText('🌱 Защитник выстоял!', 475, 270);
+        else if (gameData.winner === 'attacker') ctx.fillText('🧟 Зомби прорвались!', 475, 270);
+        else ctx.fillText('⏰ Время вышло!', 475, 270);
+        ctx.font = '18px Arial';
+        ctx.fillText(`Время: ${Math.floor((gameData.elapsedTime||0)/60)}:${String(Math.floor((gameData.elapsedTime||0)%60)).padStart(2,'0')}`, 475, 300);
     }
     
     ctx.textAlign = 'left';
 }
 
-// Клики по канвасу
-canvas.addEventListener('click', (e) => {
-    if (myRole !== 'defender' || gameData.gameOver || gameData.phase !== 'playing') return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = 950 / rect.width;
-    const scaleY = 600 / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
-    
-    // Сбор солнца
-    if (gameData.sunDrops) {
-        for (let i = 0; i < gameData.sunDrops.length; i++) {
-            const s = gameData.sunDrops[i];
-            if (s.alive === false) continue;
-            if (Math.hypot(x - s.x, y - s.y) < 25) {
-                socket.emit('collect', { id: i });
-                return;
-            }
-        }
-    }
-    
-    // Выбор растения
-    if (y < 80) {
-        const types = Object.keys(COSTS);
-        for (let i = 0; i < types.length; i++) {
-            const bx = 10 + i*110;
-            if (x >= bx && x <= bx+100 && (gameData.sunPoints||0) >= COSTS[types[i]]) {
-                selectedPlant = selectedPlant === types[i] ? null : types[i];
-                return;
-            }
-        }
-    }
-    
-    // Посадка
-    if (selectedPlant && y > 120) {
-        const col = Math.floor((x - 150) / 85);
-        const row = Math.floor((y - 120) / 90);
-        if (col >= 0 && col < 9 && row >= 0 && row < 5) {
-            socket.emit('plant', { type: selectedPlant, row, col });
-        }
-    }
-});
-
-// Клавиатура для атакующего
-document.addEventListener('keydown', (e) => {
-    if (myRole !== 'attacker' || gameData.gameOver || gameData.spawnLocked) return;
-    
-    const key = e.key.toLowerCase();
-    if (key >= '1' && key <= '5') {
-        socket.emit('zombie', { type: 'basic', row: parseInt(key)-1 });
-    } else if (key === 'q') {
-        socket.emit('zombie', { type: 'cone', row: Math.floor(Math.random()*5) });
-    } else if (key === 'w') {
-        socket.emit('zombie', { type: 'bucket', row: Math.floor(Math.random()*5) });
-    } else if (key === 'e') {
-        socket.emit('horde');
-    }
-});
-
-function gameLoop() {
-    draw();
-    requestAnimationFrame(gameLoop);
-}
+function gameLoop() { draw(); requestAnimationFrame(gameLoop); }
 gameLoop();
 </script>
 </body>
