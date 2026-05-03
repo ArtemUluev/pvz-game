@@ -153,7 +153,9 @@ const COLORS = {
     basic:'#9ccc65',cone:'#ff9800',bucket:'#795548',runner:'#f44336',gargantuar:'#9c27b0'
 };
 const PLANT_NAMES = {sunflower:'☀Подсолнух',peashooter:'🔫Горох',walnut:'🛡Орех',snowpea:'❄Ледяной',cherrybomb:'💥Бомба'};
-const COSTS = {sunflower:50,peashooter:100,walnut:50,snowpea:175,cherrybomb:150};
+const PLANT_COSTS = {sunflower:50, peashooter:100, repeater:200, walnut:50, snowpea:175, cherrybomb:150, mine:25};
+const PLANT_NAMES = {sunflower:'☀Подсолнух', peashooter:'🔫Горох', repeater:'🔫Повторитель', walnut:'🛡Орех', snowpea:'❄Ледяной', cherrybomb:'💥Бомба', mine:'🥔Мина'};
+const COSTS = PLANT_COSTS;
 
 socket.on('role', (role) => { myRole = role; updateRoleDisplay(); });
 socket.on('isHost', (host) => {
@@ -384,7 +386,7 @@ function draw() {
             const x = 10 + i*110;
             const cost = type === 'shovel' ? 0 : PLANT_COSTS[type] || 25;
             const canBuy = (gameData.sunPoints||0) >= cost;
-            const onCooldown = type !== 'shovel' && (gameState.plantCooldowns[type] || 0) > 0;
+            const onCooldown = type !== 'shovel' && (gameData.plantCooldowns[type] || 0) > 0;
             ctx.fillStyle = selectedPlant===type ? '#fff9c4' : (onCooldown ? '#555' : (canBuy ? '#c8e6c9' : '#666'));
             ctx.fillRect(x, 10, 100, 60);
             ctx.fillStyle = onCooldown ? '#888' : COLORS[type] || '#ff9800';
@@ -510,4 +512,3 @@ gameLoop();
 </script>
 </body>
 </html>
-
