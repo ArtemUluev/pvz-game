@@ -158,6 +158,7 @@ const COSTS = {sunflower:50,peashooter:100,walnut:50,snowpea:175,cherrybomb:150}
 socket.on('role', (role) => { myRole = role; updateRoleDisplay(); });
 socket.on('isHost', (host) => {
     isHost = host;
+    if (host) document.getElementById('roleSelect').classList.add('show');
 });
 socket.on('showRoleSelect', () => {
     document.getElementById('roleSelect').classList.add('show');
@@ -466,4 +467,3 @@ gameLoop();
 </script>
 </body>
 </html>
-
