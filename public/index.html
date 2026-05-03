@@ -74,10 +74,16 @@
 <div class="wrapper">
     <h1>🌱 Растения <span>VS</span> Зомби 🧟</h1>
     
-    <div class="mode-select" id="modeSelect">
+<div class="mode-select" id="modeSelect" style="display:none;">
         <h3 style="color:#fff;">Выберите режим:</h3>
         <button class="mode-btn mode-endless" onclick="selectMode('endless')">🏰 Бесконечный бой</button>
         <button class="mode-btn mode-versus" onclick="selectMode('versus')">⚔️ Соревновательный</button>
+    </div>
+    
+    <div class="mode-select" id="roleSelect">
+        <h3 style="color:#fff;">Выберите роли:</h3>
+        <button class="mode-btn" style="background:#4caf50;" onclick="chooseRole('me_defend')">🛡️ Я защищаюсь</button>
+        <button class="mode-btn" style="background:#ff5722;" onclick="chooseRole('opp_defend')">🛡️ Друг защищается</button>
     </div>
     
     <canvas id="game" width="950" height="600"></canvas>
@@ -153,7 +159,13 @@ const COSTS = {sunflower:50,peashooter:100,walnut:50,snowpea:175,cherrybomb:150}
 socket.on('role', (role) => { myRole = role; updateRoleDisplay(); });
 socket.on('isHost', (host) => {
     isHost = host;
-    if (isHost) document.getElementById('modeSelect').classList.add('show');
+});
+socket.on('showRoleSelect', () => {
+    document.getElementById('roleSelect').classList.add('show');
+});
+socket.on('showModeSelect', () => {
+    document.getElementById('modeSelect').classList.add('show');
+    document.getElementById('roleSelect').classList.remove('show');
 });
 socket.on('state', (data) => { gameData = data; updateUI(); });
 socket.on('message', (msg) => { 
@@ -220,6 +232,11 @@ function updateZombieCards() {
 function selectMode(mode) {
     socket.emit('selectMode', mode);
     document.getElementById('modeSelect').classList.remove('show');
+}
+
+function chooseRole(choice) {
+    socket.emit('chooseRole', choice);
+    document.getElementById('roleSelect').classList.remove('show');
 }
 
 function nextRound() { socket.emit('nextRound'); }
