@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>PvZ Debug</title>
+</head>
+<body>
+<h1>Debug: Открой F12 Console</h1>
+<button onclick="testSocket()">Test Socket</button>
+<button onclick="showRole()">Show Roles</button>
+<button onclick="showMode()">Show Mode</button>
+<div id="roleSelect" style="display:flex;flex-direction:column;gap:10px;background:lightblue;padding:20px;">
+<h3>Роли (debug always show)</h3>
+<button onclick="chooseRole('me_defend')">Я защищаюсь</button>
+<button onclick="chooseRole('opp_defend')">Друг защищается</button>
+</div>
+<div id="modeSelect" style="display:flex;flex-direction:column;gap:10px;background:lightgreen;padding:20px;">
+<h3>Режим</h3>
+<button onclick="selectMode('endless')">Бесконечный</button>
+</div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+socket.on('connect', () => console.log('Connected:', socket.id));
+socket.on('isHost', (h) => console.log('isHost:', h));
+socket.on('showRoleSelect', () => {
+console.log('Received showRoleSelect');
+document.getElementById('roleSelect').style.display = 'flex';
+});
+socket.on('showModeSelect', () => {
+console.log('Received showModeSelect');
+document.getElementById('modeSelect').style.display = 'flex';
+});
+function testSocket() { console.log('Socket:', socket.connected); }
+function chooseRole(c) { console.log('Choose:', c); socket.emit('chooseRole', c); }
+function selectMode(m) { console.log('Select:', m); socket.emit('selectMode', m); }
+</script>
+</body>
+</html>
