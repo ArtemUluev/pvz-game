@@ -428,9 +428,11 @@ function draw() {
             let emoji = '🌱';
             if (p.type === 'sunflower') emoji = '🌻';
             else if (p.type === 'peashooter') emoji = '🌿';
+            else if (p.type === 'repeater') emoji = '🔫';
             else if (p.type === 'walnut') emoji = '🥜';
             else if (p.type === 'snowpea') emoji = '❄️';
             else if (p.type === 'cherrybomb') emoji = '🍒';
+            else if (p.type === 'mine') emoji = '🥔';
             ctx.fillText(emoji, 0, 0);
             ctx.restore();
             
