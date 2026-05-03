@@ -212,19 +212,42 @@ function updateGame() {
       }
     }
     
-    if ((p.type === 'peashooter' || p.type === 'snowpea') && p.shootTimer <= 0) {
+    if ((p.type === 'peashooter' || p.type === 'repeater' || p.type === 'snowpea') && p.shootTimer <= 0) {
       const hasZombie = gameState.zombies.some(z =>
         z.row === p.row && z.alive && z.x > p.x && z.x < FIELD_END_X + 150
       );
       if (hasZombie) {
-        gameState.projectiles.push({
-          x: p.x + 20, y: p.y, row: p.row,
-          damage: p.type === 'snowpea' ? 20 : 15,
-          slow: p.type === 'snowpea',
-          alive: true
-        });
-        p.shootTimer = 1.2;
+        const damage = p.type === 'snowpea' ? 20 : 15;
+        const slow = p.type === 'snowpea';
+        const shootTimer = p.type === 'repeater' ? 1.8 : 1.2; // repeater shoots 2 peas
+        if (p.type === 'repeater') {
+          gameState.projectiles.push({
+            x: p.x + 20, y: p.y - 5, row: p.row,
+            damage, slow, alive: true
+          });
+          gameState.projectiles.push({
+            x: p.x + 20, y: p.y + 5, row: p.row,
+            damage, slow, alive: true
+          });
+        } else {
+          gameState.projectiles.push({
+            x: p.x + 20, y: p.y, row: p.row,
+            damage, slow, alive: true
+          });
+        }
+        p.shootTimer = shootTimer;
       }
+    }
+    
+    // Мина
+    if (p.type === 'mine') {
+      gameState.zombies.forEach(z => {
+        if (!z.alive || z.row !== p.row) return;
+        if (Math.abs(z.x - p.x) < 60) {
+          z.hp -= 300;
+          p.alive = false;
+        }
+      });
     }
     
     if (p.type === 'cherrybomb' && p.plantTime && now - p.plantTime > 600) {
