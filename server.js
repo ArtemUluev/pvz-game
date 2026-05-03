@@ -179,6 +179,24 @@ function updateGame() {
   
   if (gameState.phase !== 'playing') return;
   
+  // Auto horde wave every 90 seconds
+  if (Math.floor(gameState.elapsedTime / 90) !== Math.floor((gameState.elapsedTime - dt) / 90)) {
+    const types = getHordeComposition();
+    types.forEach(type => {
+      const s = ZOMBIE_TIERS[type];
+      const row = Math.floor(Math.random() * ROWS);
+      gameState.zombies.push({
+        type, row: row,
+        x: ZOMBIE_SPAWN_X,
+        y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,
+        hp: s.hp, maxHp: s.hp, speed: s.speed,
+        damage: s.damage, reward: s.reward,
+        energyReward: s.energyReward,
+        attackTimer: 0.2, slowed: false, alive: true
+      });
+    });
+  }
+  
   // Таймер идёт вверх
   gameState.elapsedTime += dt;
   gameState.gameTimer = gameState.elapsedTime;
@@ -412,12 +430,14 @@ io.on('connection', (socket) => {
     players.player2 = socket.id;
   }
   
-  // Check if both players connected, show role select
-  if (players.player1 && !gameState.rolesAssigned) {
+
+  // Show role select to host immediately
+  if (socket.id === players.player1 && !gameState.rolesAssigned && gameState.phase === 'lobby') {
     gameState.phase = 'role_select';
     io.to(players.player1).emit('showRoleSelect');
     io.emit('message', 'Хост выбери роли! (можно одному)');
   }
+
   
   socket.on('chooseRole', (choice) => {
     if (socket.id !== players.player1 || gameState.phase !== 'role_select') return;
@@ -512,26 +532,7 @@ io.on('connection', (socket) => {
     });
   });
   
-  socket.on('horde', () => {
-    if (socket.id !== players.attacker || gameState.phase !== 'playing' || gameState.spawnLocked) return;
-    if (gameState.elapsedTime < 90) return;
-    
-  const types = getHordeComposition();
-  types.forEach(type => {
-    // Free horde - no energy cost
-    const s = ZOMBIE_TIERS[type];
-    const row = Math.floor(Math.random() * ROWS);
-    gameState.zombies.push({
-      type, row: row,
-      x: ZOMBIE_SPAWN_X,
-      y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,
-      hp: s.hp, maxHp: s.hp, speed: s.speed,
-      damage: s.damage, reward: s.reward,
-      energyReward: s.energyReward,
-      attackTimer: 0.2, slowed: false, alive: true
-    });
-  });
-  });
+
   
   socket.on('nextRound', () => {
     if (gameState.mode !== 'versus' || gameState.phase !== 'result') return;
