@@ -377,21 +377,22 @@ function draw() {
     // Верхняя панель
     if (myRole === 'defender') {
         ctx.fillStyle = '#1b5e20'; ctx.fillRect(0, 0, 950, 80);
-        const types = ['sunflower', 'peashooter', 'repeater', 'walnut', 'snowpea', 'cherrybomb', 'mine', 'shovel'];
+        const allPlants = ['sunflower', 'peashooter', 'repeater', 'walnut', 'snowpea', 'cherrybomb', 'mine'];
+        const plantIndex = Math.min(allPlants.length - 1, Math.floor((gameData.sunPoints || 0) / 50));
+        const types = allPlants.slice(0, plantIndex + 1).concat('shovel');
         types.forEach((type, i) => {
-            if (type === 'shovel' || Object.keys(COSTS).includes(type)) {
-                const x = 10 + i*110;
-                const canBuy = type === 'shovel' || (gameData.sunPoints||0) >= PLANT_COSTS[type];
-                const onCooldown = type !== 'shovel' && (gameData.plantCooldowns?.[type] || 0) > 0;
-                ctx.fillStyle = selectedPlant===type ? '#fff9c4' : (onCooldown ? '#555' : (canBuy ? '#c8e6c9' : '#666'));
-                ctx.fillRect(x, 10, 100, 60);
-                ctx.fillStyle = onCooldown ? '#888' : COLORS[type] || '#ff9800';
-                ctx.beginPath(); ctx.arc(x+50, 28, 14, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center';
-                let name = PLANT_NAMES[type] || (type === 'repeater' ? 'Повторитель' : type === 'mine' ? 'Мина' : 'Лопата');
-                ctx.fillText(name, x+50, 50);
-                ctx.fillText(type === 'shovel' ? '⛏0' : onCooldown ? `⏳${Math.ceil(gameData.plantCooldowns[type])}с` : `☀${PLANT_COSTS[type]}`, x+50, 65);
-            }
+            const x = 10 + i*110;
+            const cost = type === 'shovel' ? 0 : PLANT_COSTS[type] || 25;
+            const canBuy = (gameData.sunPoints||0) >= cost;
+            const onCooldown = type !== 'shovel' && (gameState.plantCooldowns[type] || 0) > 0;
+            ctx.fillStyle = selectedPlant===type ? '#fff9c4' : (onCooldown ? '#555' : (canBuy ? '#c8e6c9' : '#666'));
+            ctx.fillRect(x, 10, 100, 60);
+            ctx.fillStyle = onCooldown ? '#888' : COLORS[type] || '#ff9800';
+            ctx.beginPath(); ctx.arc(x+50, 28, 14, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.font = '10px Arial'; ctx.textAlign = 'center';
+            let name = PLANT_NAMES[type] || (type === 'repeater' ? 'Повторитель' : type === 'mine' ? 'Мина' : type === 'shovel' ? 'Лопата' : type);
+            ctx.fillText(name, x+50, 50);
+            ctx.fillText(type === 'shovel' ? '⛏0' : onCooldown ? `⏳${Math.ceil(gameData.plantCooldowns[type])}с` : `☀${cost}`, x+50, 65);
         });
         ctx.textAlign = 'left';
         ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Arial';
@@ -509,3 +510,4 @@ gameLoop();
 </script>
 </body>
 </html>
+
