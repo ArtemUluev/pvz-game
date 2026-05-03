@@ -81,7 +81,7 @@ function resetRound() {
   gameState.sunDrops = [];
   gameState.lawnmowers = Array(ROWS).fill(true);
   gameState.sunPoints = 150;
-  gameState.zombieEnergy = 60;
+  zombieEnergyStartTime: 0,
   gameState.maxEnergy = 300;
   gameState.prepTimer = 15;
   gameState.gameTimer = 0;
@@ -183,8 +183,11 @@ function updateGame() {
   gameState.elapsedTime += dt;
   gameState.gameTimer = gameState.elapsedTime;
   
-  // Регенерация энергии (5 в секунду)
-  gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + 5 * dt);
+// Регенерация энергии: 2/sec → 7/sec over 10min
+  const regenProgress = Math.min(gameState.elapsedTime / 600, 1); // 10min = 600s
+  const regenRate = 2 + 5 * regenProgress;
+  gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + regenRate * dt);
+  if (gameState.phase === 'playing') gameState.zombieEnergy = 0; // start 0 in playing
   
   // Открытие тиров
   unlockTiers();
