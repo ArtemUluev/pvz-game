@@ -422,7 +422,7 @@ function draw() {
         gameData.plants.forEach(p => {
             ctx.save();
             ctx.translate(p.x, p.y);
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             let emoji = '🌱';
@@ -447,7 +447,7 @@ function draw() {
         gameData.zombies.forEach(z => {
             ctx.save();
             ctx.translate(z.x, z.y);
-            ctx.font = '24px Arial';
+            ctx.font = '36px Arial';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             let emoji = '🧟';
@@ -499,3 +499,4 @@ gameLoop();
 </script>
 </body>
 </html>
+
