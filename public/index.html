@@ -289,17 +289,21 @@ canvas.addEventListener('click', (e) => {
             }
         }
         
-        // Выбор растения в верхней панели
+
+        // Выбор растения/лопаты в верхней панели (лопата всегда)
         if (y < 80 && y > 0) {
             const types = Object.keys(COSTS);
             for (let i = 0; i < types.length; i++) {
                 const bx = 10 + i*110;
-                if (x >= bx && x <= bx+100 && (gameData.sunPoints||0) >= COSTS[types[i]]) {
-                    selectedPlant = selectedPlant === types[i] ? null : types[i];
+                const type = types[i];
+                const canBuy = type === 'shovel' || (gameData.sunPoints||0) >= COSTS[type];
+                if (x >= bx && x <= bx+100 && canBuy) {
+                    selectedPlant = selectedPlant === type ? null : type;
                     return;
                 }
             }
         }
+
         
         // Посадка / лопата
         if (selectedPlant && y > 120) {
