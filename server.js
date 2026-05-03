@@ -187,7 +187,10 @@ function updateGame() {
   const regenProgress = Math.min(gameState.elapsedTime / 600, 1); // 10min = 600s
   const regenRate = 2 + 5 * regenProgress;
   gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + regenRate * dt);
-  if (gameState.phase === 'playing') gameState.zombieEnergy = 0; // start 0 in playing
+  // Set energy 0 at start of playing phase (once)
+  if (gameState.elapsedTime < 0.1) {
+    gameState.zombieEnergy = 0;
+  }
   
   // Открытие тиров
   unlockTiers();
@@ -513,22 +516,21 @@ io.on('connection', (socket) => {
     if (socket.id !== players.attacker || gameState.phase !== 'playing' || gameState.spawnLocked) return;
     if (gameState.elapsedTime < 90) return;
     
-    const types = getHordeComposition();
-    types.forEach(type => {
-      if (gameState.zombieEnergy < ZOMBIE_ENERGY_COSTS[type]) return;
-      gameState.zombieEnergy -= ZOMBIE_ENERGY_COSTS[type];
-      const s = ZOMBIE_TIERS[type];
-      const row = Math.floor(Math.random() * ROWS);
-      gameState.zombies.push({
-        type, row: row,
-        x: ZOMBIE_SPAWN_X,
-        y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,
-        hp: s.hp, maxHp: s.hp, speed: s.speed,
-        damage: s.damage, reward: s.reward,
-        energyReward: s.energyReward,
-        attackTimer: 0.2, slowed: false, alive: true
-      });
+  const types = getHordeComposition();
+  types.forEach(type => {
+    // Free horde - no energy cost
+    const s = ZOMBIE_TIERS[type];
+    const row = Math.floor(Math.random() * ROWS);
+    gameState.zombies.push({
+      type, row: row,
+      x: ZOMBIE_SPAWN_X,
+      y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,
+      hp: s.hp, maxHp: s.hp, speed: s.speed,
+      damage: s.damage, reward: s.reward,
+      energyReward: s.energyReward,
+      attackTimer: 0.2, slowed: false, alive: true
     });
+  });
   });
   
   socket.on('nextRound', () => {
