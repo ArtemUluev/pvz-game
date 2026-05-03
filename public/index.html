@@ -190,6 +190,11 @@ function updateRoleDisplay() {
 function updateUI() {
     document.getElementById('scoreDisplay').textContent = `${gameData.score1||0} : ${gameData.score2||0}`;
     
+    if (gameData.phase === 'prep' || gameData.phase === 'playing') {
+        document.getElementById('roleSelect').style.display = 'none';
+        document.getElementById('modeSelect').style.display = 'none';
+    }
+    
     if (gameData.phase === 'prep') {
         document.getElementById('timerDisplay').textContent = `Подготовка: ${gameData.prepTimer}с`;
     } else if (gameData.phase === 'playing') {
@@ -412,29 +417,56 @@ function draw() {
         });
     }
     
-    // Растения
+    // Растения с эмодзи
     if (gameData.plants) {
         gameData.plants.forEach(p => {
-            ctx.fillStyle = COLORS[p.type] || '#888';
-            ctx.beginPath(); ctx.arc(p.x, p.y, 18, 0, Math.PI*2); ctx.fill();
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            let emoji = '🌱';
+            if (p.type === 'sunflower') emoji = '🌻';
+            else if (p.type === 'peashooter') emoji = '🌿';
+            else if (p.type === 'walnut') emoji = '🥜';
+            else if (p.type === 'snowpea') emoji = '❄️';
+            else if (p.type === 'cherrybomb') emoji = '🍒';
+            ctx.fillText(emoji, 0, 0);
+            ctx.restore();
+            
             if (p.hp < p.maxHp) {
-                ctx.fillStyle = '#333'; ctx.fillRect(p.x-15, p.y-28, 30, 4);
+                ctx.fillStyle = '#333'; ctx.fillRect(p.x-15, p.y+20, 30, 4);
                 ctx.fillStyle = p.hp/p.maxHp > 0.5 ? '#4caf50' : '#ff9800';
-                ctx.fillRect(p.x-15, p.y-28, 30*(p.hp/p.maxHp), 4);
+                ctx.fillRect(p.x-15, p.y+20, 30*(p.hp/p.maxHp), 4);
             }
         });
     }
     
-    // Зомби
+    // Зомби с эмодзи
     if (gameData.zombies) {
         gameData.zombies.forEach(z => {
-            ctx.fillStyle = COLORS[z.type] || '#9ccc65';
-            ctx.fillRect(z.x-10, z.y-15, 20, 30);
-            ctx.fillStyle = '#c8e6c9';
-            ctx.beginPath(); ctx.arc(z.x, z.y-18, 10, 0, Math.PI*2); ctx.fill();
+            ctx.save();
+            ctx.translate(z.x, z.y);
+            ctx.font = '24px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            let emoji = '🧟';
+            if (z.type === 'cone') emoji = '🪖';
+            else if (z.type === 'bucket') emoji = '🪣';
+            else if (z.type === 'runner') emoji = '🏃';
+            else if (z.type === 'gargantuar') emoji = '👹';
+            ctx.fillText(emoji, 0, 0);
+            ctx.restore();
+            
             if (z.slowed) {
                 ctx.fillStyle = 'rgba(130,210,255,0.4)';
-                ctx.beginPath(); ctx.arc(z.x, z.y, 20, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(z.x, z.y, 25, 0, Math.PI*2); ctx.fill();
+            }
+            
+            if (z.hp < z.maxHp) {
+                ctx.fillStyle = '#333'; ctx.fillRect(z.x-15, z.y+25, 30, 4);
+                ctx.fillStyle = z.hp/z.maxHp > 0.5 ? '#4caf50' : '#ff9800';
+                ctx.fillRect(z.x-15, z.y+25, 30*(z.hp/z.maxHp), 4);
             }
         });
     }
