@@ -547,7 +547,7 @@ socket.on('shovel', (data) => {
     }
   });
   
-  socket.on('restart', () => {
+socket.on('restart', () => {
     gameState = {
       mode: null,
       round: 0,
@@ -560,6 +560,7 @@ socket.on('shovel', (data) => {
       lawnmowers: Array(ROWS).fill(true),
       sunPoints: 150,
       zombieEnergy: 60,
+      zombieEnergyStartTime: 0,
       maxEnergy: 300,
       prepTimer: 15,
       gameTimer: 0,
@@ -578,15 +579,12 @@ socket.on('shovel', (data) => {
     };
     players.defender = null;
     players.attacker = null;
-    if (players.player1) {
-      io.to(players.player1).emit('isHost', true);
-      io.to(players.player1).emit('role', null);
-    }
-    if (players.player2) {
-      io.to(players.player2).emit('role', null);
-    }
-    io.emit('message', 'Игра перезапущена. Ждём игроков.');
+    io.emit('isHost', false); // Reset all
+    io.to(players.player1).emit('isHost', true);
+    io.emit('role', null);
+    io.emit('message', 'Игра перезапущена. Кнопки ролей/режима сразу!');
   });
+
   
   socket.on('disconnect', () => {
     if (socket.id === players.player1) players.player1 = null;
@@ -600,3 +598,4 @@ socket.on('shovel', (data) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => console.log('🎮 Сервер на порту ' + PORT));
+
