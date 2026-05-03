@@ -378,9 +378,7 @@ function draw() {
     // Верхняя панель
     if (myRole === 'defender') {
         ctx.fillStyle = '#1b5e20'; ctx.fillRect(0, 0, 950, 80);
-        const allPlants = ['sunflower', 'peashooter', 'repeater', 'walnut', 'snowpea', 'cherrybomb', 'mine'];
-        const plantIndex = Math.min(allPlants.length - 1, Math.floor((gameData.sunPoints || 0) / 50));
-        const types = allPlants.slice(0, plantIndex + 1).concat('shovel');
+        const types = ['sunflower', 'peashooter', 'repeater', 'walnut', 'snowpea', 'cherrybomb', 'mine', 'shovel'];
         types.forEach((type, i) => {
             const x = 10 + i*110;
             const cost = type === 'shovel' ? 0 : PLANT_COSTS[type] || 25;
