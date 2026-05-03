@@ -42,11 +42,7 @@ const ZOMBIE_ENERGY_COSTS = {
 };
 
 // ─────────────────── СОСТОЯНИЕ ИГРЫ ───────────────────
-let gameState = {
-  mode: null,
-  round: 0,
-  phase: 'lobby',
-  plants: [],
+let gameState = {\n  mode: null,\n  round: 0,\n  phase: 'lobby',\n  rolesAssigned: false,\n  plants: [],
   zombies: [],
   projectiles: [],
   sunDrops: [],
@@ -216,12 +212,7 @@ function updateGame() {
         z.row === p.row && z.alive && z.x > p.x && z.x < FIELD_END_X + 150
       );
       if (hasZombie) {
-        gameState.projectiles.push({
-          x: p.x + 20, y: p.y, row: p.row,
-          damage: p.type === 'snowpea' ? 20 : 25,
-          slow: p.type === 'snowpea',
-          alive: true
-        });
+        gameState.projectiles.push({\n          x: p.x + 20, y: p.y, row: p.row,\n          damage: p.type === 'snowpea' ? 20 : 15,\n          slow: p.type === 'snowpea',\n          alive: true\n        });
         p.shootTimer = 1.2;
       }
     }
@@ -239,26 +230,7 @@ function updateGame() {
   
   // Зомби
   gameState.zombies.forEach(z => {
-    if (!z.alive) return;
-    
-    let blocking = gameState.plants.find(p =>
-      p.alive && p.row === z.row && Math.abs(z.x - p.x) < 45
-    );
-    
-    if (blocking) {
-      z.attackTimer = (z.attackTimer || 0) - dt;
-      if (z.attackTimer <= 0) {
-        blocking.hp -= z.damage;
-        z.attackTimer = 0.7;
-        if (blocking.hp <= 0) {
-          blocking.alive = false;
-          gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + 20);
-        }
-      }
-    } else {
-      const speed = z.slowed ? z.speed * 0.4 : z.speed;
-      z.x -= speed * dt;
-    }
+    if (!z.alive) return;\n    \n    // Decay slow timer\n    z.slowTimer = Math.max(0, (z.slowTimer || 0) - dt);\n    z.slowed = z.slowTimer > 0;\n    \n    let blocking = gameState.plants.find(p =>\n      p.alive && p.row === z.row && Math.abs(z.x - p.x) < 45\n    );\n    \n    if (blocking) {\n      z.attackTimer = (z.attackTimer || 0) - dt;\n      if (z.attackTimer <= 0) {\n        blocking.hp -= z.damage;\n        z.attackTimer = 0.7;\n        if (blocking.hp <= 0) {\n          blocking.alive = false;\n          gameState.zombieEnergy = Math.min(gameState.maxEnergy, gameState.zombieEnergy + 20);\n        }\n      }\n    } else {\n      const speed = z.slowed ? z.speed * 0.4 : z.speed;\n      z.x -= speed * dt;\n    }
     
     // Газонокосилка
     if (z.x < FIELD_START_X && gameState.lawnmowers[z.row]) {
@@ -293,7 +265,7 @@ function updateGame() {
       if (!z.alive || z.row !== p.row) return;
       if (Math.abs(p.x - z.x) < 22) {
         z.hp -= p.damage;
-        if (p.slow) z.slowed = true;
+        if (p.slow) z.slowTimer = 3.0;
         p.alive = false;
       }
     });
@@ -328,10 +300,7 @@ function broadcastState() {
       type: p.type, row: p.row, col: p.col, x: p.x, y: p.y,
       hp: p.hp, maxHp: p.maxHp
     })),
-    zombies: gameState.zombies.filter(z => z.alive).map(z => ({
-      type: z.type, row: z.row, x: z.x, y: z.y,
-      hp: z.hp, maxHp: z.maxHp, slowed: z.slowed || false
-    })),
+    zombies: gameState.zombies.filter(z => z.alive).map(z => ({\n      type: z.type, row: z.row, x: z.x, y: z.y,\n      hp: z.hp, maxHp: z.maxHp, slowed: z.slowTimer > 0 || false\n    })),
     projectiles: gameState.projectiles.filter(p => p.alive).map(p => ({
       x: p.x, y: p.y, row: p.row, slow: p.slow
     })),
@@ -371,28 +340,13 @@ setInterval(() => {
 io.on('connection', (socket) => {
   console.log('Подключился:', socket.id);
   
-  if (!players.player1) {
-    players.player1 = socket.id;
-    players.defender = socket.id;
-    socket.emit('role', 'defender');
-    socket.emit('isHost', true);
-  } else if (!players.player2) {
-    players.player2 = socket.id;
-    players.attacker = socket.id;
-    socket.emit('role', 'attacker');
-  } else {
+  if (!players.player1) {\n    players.player1 = socket.id;\n    socket.emit('isHost', true);\n  } else if (!players.player2) {\n    players.player2 = socket.id;\n  } else {\n\n  }\n\n  // Check if both players connected, show role select\n  if (players.player1 && players.player2 && !gameState.rolesAssigned) {\n    gameState.phase = 'role_select';\n    io.to(players.player1).emit('showRoleSelect');\n    io.emit('message', 'Хост выбери роли!');\n  }
     socket.emit('error', 'Игра заполнена');
     socket.disconnect();
     return;
   }
   
-  socket.on('selectMode', (mode) => {
-    if (socket.id !== players.player1 || gameState.phase !== 'lobby') return;
-    gameState.mode = mode;
-    gameState.round = 0;
-    startPrepPhase();
-    io.emit('message', `Режим: ${mode === 'endless' ? 'Бесконечный бой' : 'Соревновательный'}`);
-  });
+  socket.on('selectMode', (mode) => {\n    if (socket.id !== players.player1 || gameState.phase !== 'role_select') return;\n    gameState.mode = mode;\n    gameState.round = 0;\n    gameState.phase = 'prep';\n    resetRound();\n    io.emit('message', `Режим: ${mode === 'endless' ? 'Бесконечный бой' : 'Соревновательный'}`);\n  });
   
   socket.on('plant', (data) => {
     if (socket.id !== players.defender || gameState.phase !== 'playing') return;
@@ -438,15 +392,7 @@ io.on('connection', (socket) => {
     
     gameState.zombieEnergy -= ZOMBIE_ENERGY_COSTS[data.type];
     const s = ZOMBIE_TIERS[data.type];
-    gameState.zombies.push({
-      type: data.type, row: row,
-      x: ZOMBIE_SPAWN_X, // Прямо на правом краю
-      y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,
-      hp: s.hp, maxHp: s.hp, speed: s.speed,
-      damage: s.damage, reward: s.reward,
-      energyReward: s.energyReward,
-      attackTimer: 0.3, slowed: false, alive: true
-    });
+gameState.zombies.push({\n      type: data.type, row: row,\n      x: ZOMBIE_SPAWN_X, // Прямо на правом краю\n      y: FIELD_TOP_Y + row * CELL_H + CELL_H / 2,\n      hp: s.hp, maxHp: s.hp, speed: s.speed,\n      damage: s.damage, reward: s.reward,\n      energyReward: s.energyReward,\n      attackTimer: 0.3, slowTimer: 0, slowed: false, alive: true\n    });
   });
   
   socket.on('horde', () => {
@@ -484,12 +430,7 @@ io.on('connection', (socket) => {
     }
   });
   
-  socket.on('restart', () => {
-    gameState = {
-      mode: null,
-      round: 0,
-      phase: 'lobby',
-      plants: [],
+  socket.on('chooseRole', (choice) => {\n    if (socket.id !== players.player1 || gameState.phase !== 'role_select') return;\n    \n    gameState.rolesAssigned = true;\n    gameState.phase = 'waiting_mode';\n    \n    if (choice === 'me_defend') {\n      players.defender = players.player1;\n      players.attacker = players.player2;\n    } else {\n      players.defender = players.player2;\n      players.attacker = players.player1;\n    }\n    \n    io.to(players.defender).emit('role', 'defender');\n    io.to(players.attacker).emit('role', 'attacker');\n    io.emit('message', 'Роли назначены! Хост выбери режим.');\n    io.to(players.player1).emit('showModeSelect');\n  });\n\n  socket.on('restart', () => {\n    gameState = {\n      mode: null,\n      round: 0,\n      phase: 'lobby',\n      rolesAssigned: false,\n      plants: [],
       zombies: [],
       projectiles: [],
       sunDrops: [],
