@@ -19,13 +19,13 @@ const FIELD_END_X = FIELD_START_X + COLS * CELL_W; // 915
 const ZOMBIE_SPAWN_X = FIELD_END_X; // Зомби появляются прямо на правом краю поля
 
 const PLANT_COSTS = {
-  sunflower: 50, peashooter: 100, walnut: 50, snowpea: 175, cherrybomb: 150
+  sunflower: 50, peashooter: 100, repeater: 200, walnut: 50, snowpea: 175, cherrybomb: 150, mine: 25
 };
 const PLANT_HP = {
-  sunflower: 80, peashooter: 80, walnut: 600, snowpea: 80, cherrybomb: 1
+  sunflower: 80, peashooter: 80, repeater: 80, walnut: 600, snowpea: 80, cherrybomb: 1, mine: 50
 };
 const PLANT_COOLDOWNS = {
-  sunflower: 10, peashooter: 2, walnut: 8, snowpea: 3, cherrybomb: 15
+  sunflower: 10, peashooter: 2, repeater: 1.2, walnut: 8, snowpea: 3, cherrybomb: 15, mine: 20
 };
 
 // Зомби с уровнями открытия
@@ -34,7 +34,7 @@ const ZOMBIE_TIERS = {
   cone: { tier: 1, hp: 200, speed: 22, damage: 25, reward: 40, energyReward: 25, name: 'Конусный' },
   bucket: { tier: 2, hp: 400, speed: 18, damage: 35, reward: 60, energyReward: 35, name: 'Ведёрный' },
   runner: { tier: 3, hp: 80, speed: 50, damage: 15, reward: 30, energyReward: 20, name: 'Бегун' },
-  gargantuar: { tier: 4, hp: 1000, speed: 14, damage: 80, reward: 150, energyReward: 80, name: 'Гаргантюа' }
+  gargantuar: { tier: 4, hp: 1000, speed: 14, damage: 1000, reward: 150, energyReward: 80, name: 'Гаргантюа' }
 };
 
 const ZOMBIE_ENERGY_COSTS = {
