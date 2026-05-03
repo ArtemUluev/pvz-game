@@ -384,12 +384,10 @@ io.on('connection', (socket) => {
   }
   
   // Check if both players connected, show role select
-  if (players.player1 && players.player2 && !gameState.rolesAssigned) {
+  if (players.player1 && !gameState.rolesAssigned) {
     gameState.phase = 'role_select';
     io.to(players.player1).emit('showRoleSelect');
-    io.emit('message', 'Хост выбери роли!');
-  } else if (players.player1 && !players.player2) {
-    io.emit('message', 'Ожидание второго игрока...');
+    io.emit('message', 'Хост выбери роли! (можно одному)');
   }
   
   socket.on('chooseRole', (choice) => {
@@ -400,9 +398,9 @@ io.on('connection', (socket) => {
     
     if (choice === 'me_defend') {
       players.defender = players.player1;
-      players.attacker = players.player2;
+      players.attacker = players.player2 || null; // OK без второго
     } else {
-      players.defender = players.player2;
+      players.defender = players.player2 || players.player1;
       players.attacker = players.player1;
     }
     
@@ -415,10 +413,10 @@ io.on('connection', (socket) => {
   socket.on('selectMode', (mode) => {
     if (socket.id !== players.player1 || gameState.phase !== 'waiting_mode') return;
     gameState.mode = mode;
-    gameState.round = 0;
     gameState.phase = 'prep';
     resetRound();
-    io.emit('message', `Режим: ${mode === 'endless' ? 'Бесконечный бой' : 'Соревновательный'}`);
+    io.emit('message', `Режим: Бесконечный бой. Подготовка 15с!`);
+    startPrepPhase();
   });
   
   socket.on('plant', (data) => {
