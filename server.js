@@ -396,7 +396,9 @@ io.on('connection', (socket) => {
     if (socket.id !== players.player1 || gameState.phase !== 'role_select') return;
     
     gameState.rolesAssigned = true;
-    gameState.phase = 'waiting_mode';
+    gameState.mode = 'endless';
+    gameState.phase = 'prep';
+    startPrepPhase();
     
     if (choice === 'me_defend') {
       players.defender = players.player1;
@@ -408,8 +410,7 @@ io.on('connection', (socket) => {
     
     io.to(players.defender).emit('role', 'defender');
     io.to(players.attacker).emit('role', 'attacker');
-    io.emit('message', 'Роли назначены! Хост выбери режим.');
-    io.to(players.player1).emit('showModeSelect');
+    io.emit('message', 'Роли назначены! Авторежим: Бесконечный бой. Подготовка 15с...');
   });
   
   socket.on('selectMode', (mode) => {
