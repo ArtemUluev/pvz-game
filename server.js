@@ -465,6 +465,15 @@ io.on('connection', (socket) => {
     });
   });
   
+  socket.on('shovel', (data) => {
+    if (socket.id !== players.defender || gameState.phase !== 'playing') return;
+    const plantIndex = gameState.plants.findIndex(p => p.alive && p.row === data.row && p.col === data.col);
+    if (plantIndex > -1) {
+      gameState.plants[plantIndex].alive = false;
+      gameState.sunPoints += 20; // refund
+    }
+  });
+  
   socket.on('collect', (data) => {
     if (socket.id !== players.defender) return;
     const sun = gameState.sunDrops[data.id];
